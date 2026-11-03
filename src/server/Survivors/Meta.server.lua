@@ -22,7 +22,7 @@ rf.OnServerInvoke = function(player, action)
 	last[player] = now
 	-- Server-side permission check: menu actions are for dead players only.
 	if type(action) == "string" and action ~= "state" then
-		if player:GetAttribute("Alive") ~= false or player:GetAttribute("HasDied") ~= true then
+		if player:GetAttribute("HasJoined") == true and (player:GetAttribute("Alive") ~= false or player:GetAttribute("HasDied") ~= true) then
 			return Persistence.state(player, false, "Menu available only after death.")
 		end
 	end
