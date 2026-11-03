@@ -360,9 +360,9 @@ local joinBtn = button({
 	BackgroundColor3 = Color3.fromRGB(55, 185, 107), TextSize = 23, ZIndex = 12,
 }, panel, function()
 	if isLobby() then
-		joinRemote:FireServer()
 		joinBtn.Text = "JOINING..."
 		joinBtn.Active = false
+		joinRemote:FireServer()
 	else
 		-- After death, the server controls revive / next-run timing.
 		showMenu(false)
@@ -376,8 +376,9 @@ local function syncMenuAccess()
 	closeBtn.Visible = not lobby
 	joinBtn.Text = lobby and "JOIN" or "BACK"
 	joinBtn.Active = true
+	-- No countdown can close the lobby: only explicit JOIN acknowledgement.
 	if lobby then
-		if not panel.Visible then showMenu(true) end
+		if not panel.Visible or not shade.Visible then showMenu(true) end
 	elseif not allowed then
 		showMenu(false)
 	else
