@@ -248,12 +248,12 @@ local function renderSupport()
     header("SUPPORT THE CREATOR")
     local intro = row(62)
     text({ Position = UDim2.fromOffset(12, 5), Size = UDim2.new(1, -24, 1, -10),
-        Text = "Enjoy Survivors 2D? You can support its development with Robux!\\nCompletely optional. No gameplay advantages or rewards.",
+        Text = "Support Survivors 2D and unlock a permanent cosmetic title!\\n50: yellow tag  |  100: RGB tag  |  1000: RGB tag + trail",
         TextWrapped = true, TextSize = 14, TextXAlignment = LEFT, ZIndex = 13 }, intro)
     for _, product in ipairs(SupportProducts) do
         local r = row(64)
         text({ Position = UDim2.fromOffset(12, 4), Size = UDim2.new(0.62, -20, 1, -8),
-            Text = product.title .. "  -  " .. tostring(product.robux) .. " Robux",
+            Text = product.title .. "  -  " .. tostring(product.robux) .. " Robux\\n" .. (product.perk or ""),
             TextSize = 15, TextXAlignment = LEFT, TextWrapped = true, ZIndex = 13 }, r)
         local ready = type(product.id) == "number" and product.id > 0
         button({ Text = ready and ("SUPPORT  " .. tostring(product.robux) .. " R$") or "NOT SET UP",
