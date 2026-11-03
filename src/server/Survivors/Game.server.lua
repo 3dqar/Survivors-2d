@@ -109,6 +109,7 @@ local function resetStats(st)
 	st.alive = false
 	st.spawning = false
 	st.reviveAt = 0
+	st.waitingReward = false
 end
 
 local function newStats(player)
@@ -1306,6 +1307,14 @@ function restartRun()
 			publish(player, st)
 			continue
 		end
+		if Persistence.hasPending(player) then
+			-- Do not respawn while chest roulette is rolling or KEEP/SELL is undecided.
+			-- Remain dead, safe and able to use the menu across the automatic new-run timer.
+			st.waitingReward = true
+			player:SetAttribute("HasDied", true)
+			publish(player, st)
+			continue
+		end
 		player:SetAttribute("HasDied", false)
 		task.spawn(function()
 			spawnPlayer(player, st, nil, 1)
@@ -1423,6 +1432,26 @@ local function step(dt)
 	end
 
 	local now = os.clock()
+	-- A saved chest reward can outlast the automatic global game-over countdown.
+	-- Resume only that player after the server confirms KEEP or SELL.
+	for player, st in stats do
+		if st.waitingReward and st.joined and not st.spawning and not Persistence.hasPending(player) then
+			st.waitingReward = false
+			st.spawning = true -- prevents multiple queued respawns on successive frames
+			player:SetAttribute("HasDied", false)
+			task.spawn(function()
+				if stats[player] ~= st or run.state ~= "Playing" then
+					st.spawning = false
+					return
+				end
+				spawnPlayer(player, st, nil, 1)
+				Persistence.waitLoaded(player, 10)
+				if stats[player] == st and run.state == "Playing" and st.alive then
+					sendHeroOffer(player, st)
+				end
+			end)
+		end
+	end
 	local targets = collectTargets()
 	if #targets > 0 then
 		run.time += dt
@@ -1535,6 +1564,13 @@ joinRemote.OnServerEvent:Connect(function(player)
 	end
 	st.joined = true
 	player:SetAttribute("HasJoined", true)
+	if Persistence.hasPending(player) then
+		-- Reward obtained in an earlier session must be resolved before joining.
+		st.waitingReward = true
+		player:SetAttribute("HasDied", true)
+		publish(player, st)
+		return
+	end
 	if run.state ~= "Playing" then
 		-- Joined during the result screen: automatically enter on the next run.
 		return
