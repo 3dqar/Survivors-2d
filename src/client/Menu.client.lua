@@ -76,7 +76,7 @@ end
 local gui = new("ScreenGui", { Name = "SurvivorsMenu", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 20 }, player:WaitForChild("PlayerGui"))
 
 local menuBtn = button({
-	Text = "MENU", Size = TOUCH and UDim2.fromOffset(156, 48) or UDim2.fromOffset(160, 44), AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -18),
+	Text = "MENU", Size = TOUCH and UDim2.fromOffset(156, 48) or UDim2.fromOffset(160, 44), AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 95, 1, -24),
 	BackgroundColor3 = PANEL, TextSize = 15,
 }, gui, function() end)
 
