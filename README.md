@@ -1,26 +1,51 @@
 # Survivors 2D — Rojo v5
 
-Roblox top-down multiplayer survivors prototype. **Max players: 10** (configure in Roblox Creator Hub).
+Roblox 2D / top-down multiplayer survivors prototype. **10 players maximum** (set in Roblox Creator Hub / experience place settings: **Max Players = 10**; this limit is not set by Rojo scripts).
 
-## Setup
+## Setup (Windows PowerShell)
 
-1. Download and extract the prepared `Survivors_Rojo_v5.zip` folder.
-2. Copy all contents of the extracted folder into this repository clone.
-3. From the project root, start `rojo serve default.project.json`.
-4. In Roblox Studio, install the Rojo plugin and connect to localhost port 34872.
-5. Check Output and test with multiple clients before publishing.
+1. Install **Rojo CLI** and the matching **Rojo Studio plugin**. Open or publish a Roblox Studio place. Save/backup the original place before connecting.
+2. Extract this folder and run:
+   ```powershell
+   cd "C:\path\to\Survivors_Rojo_v5"
+   rojo serve default.project.json
+   ```
+3. In Roblox Studio choose **Rojo > Connect** and localhost port **34872**, then **Sync**. Check that the Scripts/ModuleScripts are in the services listed below.
+4. In Studio run **Test > Start Server** with multiple clients. Inspect **View > Output** for errors.
+5. Publish the place, enable **Game Settings > Security > Enable Studio Access to API Services** only for Studio DataStore testing (avoid testing against production DataStores), and configure Max Players = 10 in Creator Hub.
 
-## Mapping
-- `src/shared/SurvivorsShared` → `ReplicatedStorage/SurvivorsShared`
-- `src/server/Survivors` → `ServerScriptService/Survivors`
-- `src/client` → `StarterPlayer/StarterPlayerScripts`
+## Rojo mapping
 
-**Important:** Existing manually inserted v4 scripts must be removed before syncing to avoid duplicated gameplay scripts. Keep your original Studio place backup. The actual gameplay scripts are distributed in the v5 ZIP and must be added to this repo before Rojo sync.
+- `src/shared/SurvivorsShared/*.lua` → `ReplicatedStorage/SurvivorsShared/*` (ModuleScript)
+- `src/server/Survivors/*.server.lua` → `ServerScriptService/Survivors/*` (Script)
+- `src/server/Survivors/*.lua` → `ServerScriptService/Survivors/*` (ModuleScript)
+- `src/client/*.client.lua` → `StarterPlayer/StarterPlayerScripts/*` (LocalScript)
 
-## Included in the ZIP
-- Mage/Knight/Rogue, saved hero preference
-- Weapons, chests, elite enemies, Elite Hunt
-- Goals, daily challenges, HUD, mobile layouts
-- Adaptive enemy counts for multiplayer
+In v4, `Game_server` / `Arena_server` / `Meta_server` are now named `Game` / `Arena` / `Meta` instances in Studio. They reference their siblings only by names `Grid`, `Fx`, `Persistence`, `Goals`, so renaming the script instances is safe. Delete the **old** manual v4 scripts before syncing to avoid double server loops and duplicate GUIs; do not delete the whole place unless intentional.
 
-DataStore and sounds, animations and real 10-player performance have not been verified in Roblox Studio.
+## Changes since v4
+
+- Converted all scripts to Rojo-friendly `.server.lua`, `.client.lua` and module `.lua` file types.
+- Added complete `default.project.json` and Git-ready folder layout.
+- Added the last selected character preference to existing `SurvivorsV2` DataStore. On subsequent rounds/joins after a successful load, the saved hero is automatically selected; new players still select Mage / Knight / Rogue. If loading fails, hero choice is shown and data is not overwritten.
+- Preserved enemy scaling, skills, Elite Hunt, chests, Goals, and mobile layouts from supplied v4.
+
+## Constraints / not yet verified
+
+- Roblox Studio/real phone/10 connected clients **not executed here**. Review Output and test touch controls, latency, DataStore save/load, chests and events before release.
+- 3D model assets, animations, asset IDs and sounds were not replaced. Characters/enemies are simple parts and some sound IDs may not play.
+- The current place has no in-game way to change a **saved** hero. To support hero switching, a character-selection menu setting would need to be added. The saved preference is intentionally automatic.
+- No repository was created automatically; connect an existing or new GitHub repository and push these files.
+
+## Upload to GitHub (first commit)
+
+```powershell
+git init
+git add .
+git commit -m "Set up Survivors v5 Rojo project"
+git branch -M main
+git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPO.git
+git push -u origin main
+```
+
+If repository already exists, clone it first and copy the project files into that clone instead of running `git init` in an unrelated working folder.

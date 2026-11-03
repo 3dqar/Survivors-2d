@@ -1,0 +1,335 @@
+-- StarterPlayer/StarterPlayerScripts/Menu_client  (LocalScript)
+-- Meniu (mygtukas MENU arba klavišas M): Leaderboard / Chests / Upgrades / Goals (pasiekimai + dienos iššūkiai).
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local Shared = ReplicatedStorage:WaitForChild("SurvivorsShared")
+local Meta = require(Shared:WaitForChild("Meta"))
+local Config = require(Shared:WaitForChild("Config"))
+local metaRF = ReplicatedStorage:WaitForChild("SurvivorsRemotes"):WaitForChild("Meta")
+
+local BG, PANEL, ACC, TXT = Color3.fromRGB(14, 16, 28), Color3.fromRGB(30, 34, 56), Color3.fromRGB(90, 170, 255), Color3.fromRGB(235, 238, 250)
+local DIM = Color3.fromRGB(190, 195, 225)
+local TOUCH = UserInputService.TouchEnabled
+local LEFT, RIGHT = Enum.TextXAlignment.Left, Enum.TextXAlignment.Right
+
+local function new(class, props, parent)
+	local o = Instance.new(class)
+	for k, v in props do
+		o[k] = v
+	end
+	o.Parent = parent
+	return o
+end
+
+local function round(o, r)
+	new("UICorner", { CornerRadius = UDim.new(0, r or 8) }, o)
+end
+
+local function text(props, parent)
+	props.BackgroundTransparency = 1
+	props.Font = props.Font or Enum.Font.GothamBold
+	props.TextColor3 = props.TextColor3 or TXT
+	props.TextSize = props.TextSize or 16
+	return new("TextLabel", props, parent)
+end
+
+local function button(props, parent, onClick)
+	props.Font = Enum.Font.GothamBold
+	props.TextColor3 = props.TextColor3 or TXT
+	props.TextSize = props.TextSize or 16
+	props.BackgroundColor3 = props.BackgroundColor3 or ACC
+	props.BorderSizePixel = 0
+	local b = new("TextButton", props, parent)
+	round(b, 8)
+	b.Activated:Connect(onClick)
+	return b
+end
+
+local function sfx(name, vol)
+	local id = Config.Sounds[name]
+	if id and id ~= "" then
+		local s = new("Sound", { SoundId = id, Volume = vol or 0.5 }, SoundService)
+		s:Play()
+		task.delay(4, function()
+			s:Destroy()
+		end)
+	end
+end
+
+local function fmt(secs)
+	secs = math.floor(secs or 0)
+	return string.format("%d:%02d", secs // 60, secs % 60)
+end
+
+---------------------------------------------------------------------
+-- UI
+---------------------------------------------------------------------
+local gui = new("ScreenGui", { Name = "SurvivorsMenu", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 20 }, player:WaitForChild("PlayerGui"))
+
+local menuBtn = button({
+	Text = TOUCH and "MENU" or "MENU (M)", Size = TOUCH and UDim2.fromOffset(120, 46) or UDim2.fromOffset(120, 36), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12),
+	BackgroundColor3 = PANEL, TextSize = 15,
+}, gui, function() end)
+
+local panel = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.92, 0.86),
+	BackgroundColor3 = BG, BorderSizePixel = 0, Visible = false, ZIndex = 10,
+}, gui)
+round(panel, 14)
+new("UISizeConstraint", { MaxSize = Vector2.new(700, 470) }, panel)
+
+local tabsFrame = new("Frame", { Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -72, 0, 40), BackgroundTransparency = 1, ZIndex = 11 }, panel)
+new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, tabsFrame)
+
+local content = new("ScrollingFrame", {
+	Position = UDim2.fromOffset(12, 58), Size = UDim2.new(1, -24, 1, -70), BackgroundTransparency = 1, BorderSizePixel = 0,
+	ScrollBarThickness = 6, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), ZIndex = 11,
+}, panel)
+new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, content)
+
+local S, tab, busy = nil, "Leaderboard", false
+local order = 0
+local render
+
+local function act(action)
+	if busy then
+		return
+	end
+	busy = true
+	local ok, res = pcall(function()
+		return metaRF:InvokeServer(action)
+	end)
+	busy = false
+	if ok and res then
+		S = res
+		if action == "open" and res.ok then
+			sfx("chest", 0.7)
+		elseif action ~= "state" then
+			sfx("click", 0.4)
+		end
+		render()
+	end
+end
+
+local function row(height)
+	order += 1
+	local f = new("Frame", { Size = UDim2.new(1, -8, 0, height), BackgroundColor3 = PANEL, BorderSizePixel = 0, LayoutOrder = order, ZIndex = 12 }, content)
+	round(f, 8)
+	return f
+end
+
+local function header(t)
+	local r = row(26)
+	r.BackgroundTransparency = 1
+	text({ Size = UDim2.fromScale(1, 1), Text = t, TextColor3 = ACC, TextSize = 14, TextXAlignment = LEFT, ZIndex = 13 }, r)
+end
+
+local function renderBoard()
+	header("THIS SERVER  -  current run")
+	for i, e in S.server do
+		local r = row(30)
+		text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.45, 0, 1, 0), Text = i .. ". " .. e.name, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13 }, r)
+		text({
+			Position = UDim2.new(0.45, 0, 0, 0), Size = UDim2.new(0.55, -10, 1, 0), TextXAlignment = RIGHT, TextSize = 14, TextColor3 = DIM, ZIndex = 13,
+			Text = string.format("Lv %d   Kills %d   Best %s", e.level, e.kills, fmt(e.best)),
+		}, r)
+	end
+	header("GLOBAL TOP  -  best survival time")
+	if #S.top == 0 then
+		local r = row(30)
+		text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -20, 1, 0), Text = "No global data yet (publish the game and finish a run).", TextXAlignment = LEFT, TextSize = 14, TextColor3 = DIM, ZIndex = 13 }, r)
+	end
+	for i, e in S.top do
+		local r = row(30)
+		text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.6, 0, 1, 0), Text = i .. ". " .. e.name, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13 }, r)
+		text({ Position = UDim2.new(0.6, 0, 0, 0), Size = UDim2.new(0.4, -10, 1, 0), Text = fmt(e.score), TextXAlignment = RIGHT, TextColor3 = Color3.fromRGB(255, 215, 90), ZIndex = 13 }, r)
+	end
+end
+
+local function renderChests()
+	local r = row(70)
+	text({
+		Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -250, 1, 0), TextXAlignment = LEFT, TextWrapped = true, TextSize = 15, ZIndex = 13,
+		Text = "Chests: " .. S.chests .. "\nA boss gives everyone one chest. Chests give permanent upgrades.",
+	}, r)
+	button({ Text = "OPEN", Size = UDim2.fromOffset(100, 42), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -128, 0.5, 0), ZIndex = 13 }, r, function()
+		act("open")
+	end)
+	button({
+		Text = "BUY " .. S.price, Size = UDim2.fromOffset(110, 42), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
+		BackgroundColor3 = Color3.fromRGB(240, 190, 70), TextColor3 = Color3.fromRGB(30, 25, 10), ZIndex = 13,
+	}, r, function()
+		act("buy")
+	end)
+	if S.msg then
+		local m = row(30)
+		text({ Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -24, 1, 0), Text = S.msg, TextXAlignment = LEFT, TextSize = 15, TextColor3 = S.ok and Color3.fromRGB(120, 230, 150) or Color3.fromRGB(255, 130, 130), ZIndex = 13 }, m)
+	end
+	if S.pending then
+		local p = S.pending
+		local st, rar = Meta.Stats[p.stat], Meta.Rarities[p.r]
+		local lv = S.up[p.stat] or 0
+		local c = row(130)
+		text({ Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 30), Text = rar.name:upper() .. "  -  " .. st.name, TextXAlignment = LEFT, TextColor3 = rar.color, TextSize = 22, Font = Enum.Font.GothamBlack, ZIndex = 13 }, c)
+		text({
+			Position = UDim2.fromOffset(12, 40), Size = UDim2.new(1, -24, 0, 40), TextXAlignment = LEFT, TextWrapped = true, TextSize = 14, TextColor3 = DIM, ZIndex = 13,
+			Text = string.format("%s\n+%d level  (now Lv %d / %d)", st.text, rar.lv, lv, Meta.MaxLevel),
+		}, c)
+		button({ Text = "KEEP", Size = UDim2.fromOffset(140, 38), Position = UDim2.new(0, 12, 1, -48), BackgroundColor3 = Color3.fromRGB(70, 190, 110), ZIndex = 13 }, c, function()
+			act("keep")
+		end)
+		button({ Text = "SELL +" .. rar.sell, Size = UDim2.fromOffset(150, 38), Position = UDim2.new(0, 164, 1, -48), BackgroundColor3 = Color3.fromRGB(240, 190, 70), TextColor3 = Color3.fromRGB(30, 25, 10), ZIndex = 13 }, c, function()
+			act("sell")
+		end)
+	end
+end
+
+local function renderUpgrades()
+	header("PERMANENT UPGRADES  -  from chests")
+	for _, id in Meta.Order do
+		local st = Meta.Stats[id]
+		local lv = S.up[id] or 0
+		local r = row(56)
+		text({ Position = UDim2.fromOffset(12, 4), Size = UDim2.new(0.6, 0, 0, 22), Text = st.name, TextXAlignment = LEFT, TextColor3 = st.color, ZIndex = 13 }, r)
+		text({ Position = UDim2.new(0.6, 0, 0, 4), Size = UDim2.new(0.4, -12, 0, 22), Text = "Lv " .. lv .. " / " .. Meta.MaxLevel, TextXAlignment = RIGHT, ZIndex = 13 }, r)
+		text({ Position = UDim2.fromOffset(12, 26), Size = UDim2.new(1, -24, 0, 16), Text = st.text, TextXAlignment = LEFT, TextSize = 13, TextColor3 = DIM, ZIndex = 13 }, r)
+		local back = new("Frame", { Position = UDim2.new(0, 12, 1, -9), Size = UDim2.new(1, -24, 0, 5), BackgroundColor3 = BG, BorderSizePixel = 0, ZIndex = 13 }, r)
+		new("Frame", { Size = UDim2.new(lv / Meta.MaxLevel, 0, 1, 0), BackgroundColor3 = st.color, BorderSizePixel = 0, ZIndex = 14 }, back)
+	end
+end
+
+local function hm(secs)
+	secs = math.max(0, math.floor(secs or 0))
+	return string.format("%dh %02dm", secs // 3600, secs % 3600 // 60)
+end
+
+local function goalRow(g, sub)
+	local r = row(58)
+	text({ Position = UDim2.fromOffset(12, 4), Size = UDim2.new(0.66, 0, 0, 22), Text = g.name, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, TextSize = 15, TextColor3 = g.done and Color3.fromRGB(120, 230, 150) or TXT, ZIndex = 13 }, r)
+	text({
+		Position = UDim2.new(0.66, 0, 0, 4), Size = UDim2.new(0.34, -12, 0, 22), TextXAlignment = RIGHT, TextSize = 14, ZIndex = 13,
+		Text = g.done and "DONE" or (g.value .. " / " .. g.target), TextColor3 = g.done and Color3.fromRGB(120, 230, 150) or DIM,
+	}, r)
+	text({ Position = UDim2.fromOffset(12, 26), Size = UDim2.new(1, -24, 0, 16), Text = sub, TextXAlignment = LEFT, TextSize = 13, TextColor3 = DIM, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13 }, r)
+	local back = new("Frame", { Position = UDim2.new(0, 12, 1, -9), Size = UDim2.new(1, -24, 0, 5), BackgroundColor3 = BG, BorderSizePixel = 0, ZIndex = 13 }, r)
+	new("Frame", { Size = UDim2.new(math.clamp(g.value / math.max(1, g.target), 0, 1), 0, 1, 0), BackgroundColor3 = g.done and Color3.fromRGB(120, 230, 150) or Color3.fromRGB(255, 215, 90), BorderSizePixel = 0, ZIndex = 14 }, back)
+end
+
+local function renderGoals()
+	header("DAILY CHALLENGES  -  resets in " .. hm(S.dailyReset))
+	for _, c in S.daily or {} do
+		goalRow(c, "Reward: +" .. c.coins .. " coins")
+	end
+	header("ACHIEVEMENTS")
+	for _, a in S.ach or {} do
+		goalRow(a, a.desc .. "   (+" .. a.coins .. " coins)")
+	end
+end
+
+local tabButtons = {}
+for _, name in { "Leaderboard", "Chests", "Upgrades", "Goals" } do
+	tabButtons[name] = button({ Text = name, Size = UDim2.new(0.25, -5, 1, 0), BackgroundColor3 = PANEL, TextSize = TOUCH and 15 or 14, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 12 }, tabsFrame, function()
+		tab = name
+		sfx("click", 0.3)
+		render()
+	end)
+end
+
+function render()
+	if not S then
+		return
+	end
+	menuBtn.Text = (S.chests > 0 or S.pending) and "MENU (M) !" or "MENU (M)"
+	if not panel.Visible then
+		return
+	end
+	for name, b in tabButtons do
+		b.BackgroundColor3 = name == tab and ACC or PANEL
+	end
+	for _, c in content:GetChildren() do
+		if c:IsA("GuiObject") then
+			c:Destroy()
+		end
+	end
+	order = 0
+	local cr = row(26)
+	cr.BackgroundTransparency = 1
+	text({ Size = UDim2.fromScale(1, 1), Text = "Coins: " .. S.coins, TextColor3 = Color3.fromRGB(255, 215, 90), TextSize = 15, TextXAlignment = RIGHT, ZIndex = 13 }, cr)
+	if tab == "Leaderboard" then
+		renderBoard()
+	elseif tab == "Chests" then
+		renderChests()
+	elseif tab == "Goals" then
+		renderGoals()
+	else
+		renderUpgrades()
+	end
+end
+
+button({ Text = "X", Size = UDim2.fromOffset(48, 40), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 8), BackgroundColor3 = Color3.fromRGB(200, 70, 80), ZIndex = 12 }, panel, function()
+	panel.Visible = false
+end)
+
+local function toggle()
+	panel.Visible = not panel.Visible
+	if panel.Visible then
+		if S and S.pending then
+			tab = "Chests"
+		end
+		render()
+		act("state")
+	end
+end
+
+menuBtn.Activated:Connect(toggle)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.M then
+		toggle()
+	end
+end)
+
+-- pranešimai: pasiekimai / dienos iššūkiai / pasiimta skrynia
+local toastLabel = text({
+	AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 120), Size = UDim2.fromOffset(420, 36),
+	BackgroundTransparency = 0.2, BackgroundColor3 = PANEL, TextSize = 15, TextWrapped = true, Visible = false, ZIndex = 40,
+}, gui)
+round(toastLabel, 8)
+local toastId = 0
+local function toast(msg, color)
+	toastId += 1
+	local my = toastId
+	toastLabel.Text = msg
+	toastLabel.TextColor3 = color or Color3.fromRGB(255, 215, 90)
+	toastLabel.Visible = true
+	task.delay(4, function()
+		if toastId == my then
+			toastLabel.Visible = false
+		end
+	end)
+end
+
+player:GetAttributeChangedSignal("Toast"):Connect(function()
+	local msg = string.match(tostring(player:GetAttribute("Toast") or ""), "^%d+|(.+)$")
+	if msg then
+		toast(msg)
+		sfx("levelup", 0.5)
+		task.spawn(act, "state")
+	end
+end)
+
+player:GetAttributeChangedSignal("ChestPickup"):Connect(function()
+	toast("CHEST COLLECTED!  Open it in MENU > Chests", Color3.fromRGB(255, 215, 90))
+	task.spawn(act, "state")
+end)
+
+-- periodinis atnaujinimas (kad mygtukas rodytų "!", kai gauta skrynia)
+task.spawn(function()
+	while true do
+		act("state")
+		task.wait(panel.Visible and 5 or 15)
+	end
+end)
