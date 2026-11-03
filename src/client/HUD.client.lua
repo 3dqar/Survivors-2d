@@ -14,6 +14,7 @@ local fxRemote = remotes:WaitForChild("Fx")
 local offerRemote = remotes:WaitForChild("Offer")
 local pickRemote = remotes:WaitForChild("Pick")
 local readyRemote = remotes:WaitForChild("Ready")
+local playAgainRemote = remotes:WaitForChild("PlayAgain")
 
 task.spawn(function()
 	for _ = 1, 5 do
@@ -215,9 +216,28 @@ local overStats = label({
 	Text = "", TextSize = 26, ZIndex = 21,
 }, over)
 local overTimer = label({
-	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.6), Size = UDim2.fromOffset(700, 40),
-	Text = "", TextSize = 20, TextColor3 = Color3.fromRGB(190, 195, 225), ZIndex = 21,
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.6), Size = UDim2.new(0.94, 0, 0, 40),
+	Text = "Choose PLAY or MENU", TextSize = 20, TextColor3 = Color3.fromRGB(190, 195, 225), ZIndex = 21,
 }, over)
+
+local playAgain = make("TextButton", {
+    Text = "PLAY", Font = Enum.Font.GothamBlack, TextSize = 25,
+    TextColor3 = Color3.fromRGB(245, 255, 248),
+    BackgroundColor3 = Color3.fromRGB(48, 173, 97),
+    BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 1),
+    Position = UDim2.new(0.5, -95, 1, -24), Size = UDim2.fromOffset(166, 52),
+    ZIndex = 23,
+}, over)
+corner(playAgain, 10)
+playAgain.Activated:Connect(function()
+    if workspace:GetAttribute("RunState") ~= "GameOver" then return end
+    if player:GetAttribute("ChestPending") == true then
+        overTimer.Text = "Open MENU > Chests and choose KEEP or SELL first!"
+        return
+    end
+    overTimer.Text = "Starting next run..."
+    playAgainRemote:FireServer()
+end)
 
 local function fmtTime(s)
 	s = math.floor(s)
@@ -428,13 +448,17 @@ RunService.RenderStepped:Connect(function(dt)
 			workspace:GetAttribute("ResultKills") or 0,
 			player:GetAttribute("Kills") or 0
 		)
-		local left = math.max(0, math.ceil((workspace:GetAttribute("RestartAt") or 0) - workspace:GetServerTimeNow()))
-		overTimer.Text = "New run in " .. left
+		if player:GetAttribute("ChestPending") == true then
+			overTimer.Text = "Choose KEEP or SELL in MENU before PLAY"
+		elseif overTimer.Text ~= "Starting next run..." then
+			overTimer.Text = "Choose PLAY or MENU"
+		end
 		if currentOffer then
 			hideOffer()
 		end
 	else
 		over.Visible = false
+		overTimer.Text = "Choose PLAY or MENU"
 	end
 end)
 
