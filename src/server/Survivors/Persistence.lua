@@ -23,14 +23,25 @@ if not okTop then
 	topStore = nil
 end
 
+-- Separate lifetime OrderedDataStores: existing survival-time board keeps its key.
+local ordered = { time = topStore }
+for metric, storeName in { bestKills = "SurvivorsBestKillsV1", bestLevel = "SurvivorsBestLevelV1", totalKills = "SurvivorsTotalKillsV1" } do
+	local ok, result = pcall(function()
+		return DataStoreService:GetOrderedDataStore(storeName)
+	end)
+	ordered[metric] = ok and result or nil
+end
+
 local rng = Random.new()
 local data = {}
-local top, topAt, topBusy, names = {}, -1e9, false, {}
+local tops, topAt, topBusy, names = {}, {}, {}, {}
 
 local function refreshValues(d)
 	d.bestValue.Value = d.best
 	d.killsValue.Value = d.kills
 	d.coinsValue.Value = d.coins
+	d.bestKillsValue.Value = d.bestKills
+	d.bestLevelValue.Value = d.bestLevel
 end
 
 local function save(player)
@@ -41,12 +52,13 @@ local function save(player)
 	d.dirty = false
 	local ok = pcall(function()
 		store:SetAsync(tostring(player.UserId), {
-			best = d.best, kills = d.kills, coins = d.coins, chests = d.chests, up = d.up, pending = d.pending,
+			best = d.best, kills = d.kills, bestKills = d.bestKills, bestLevel = d.bestLevel, coins = d.coins, chests = d.chests, up = d.up, pending = d.pending,
 			stats = d.stats, ach = d.ach, daily = d.daily, preferredHero = d.preferredHero,
 		})
 	end)
 	if not ok then
 		d.dirty = true
+		warn("[Survivors] Profile save failed for " .. player.UserId .. " (check published game / API Services).")
 	end
 end
 
@@ -66,31 +78,48 @@ local function touch(player)
 	end
 end
 
-local function refreshTop()
-	if not topStore or topBusy or os.clock() - topAt < 60 then
-		return
-	end
-	topBusy = true
+local function updateOrdered(player, metric, score)
+	local board = ordered[metric]
+	local d = data[player]
+	if not board or not d or d.noSave or not d.loaded then return end
+	task.spawn(function()
+		local ok, err = pcall(function()
+			board:UpdateAsync(tostring(player.UserId), function(old)
+				return math.max(tonumber(old) or 0, math.floor(score))
+			end)
+		end)
+		if not ok then
+			warn("[Survivors] Global " .. metric .. " update failed: " .. tostring(err))
+		end
+	end)
+end
+
+local function refreshTop(metric)
+	local board = ordered[metric]
+	if not board or topBusy[metric] or os.clock() - (topAt[metric] or -1e9) < 60 then return end
+	topBusy[metric] = true
 	task.spawn(function()
 		local ok, page = pcall(function()
-			return topStore:GetSortedAsync(false, 10):GetCurrentPage()
+			return board:GetSortedAsync(false, 10):GetCurrentPage()
 		end)
 		if ok then
 			local list = {}
-			for _, e in page do
-				local uid = tonumber(e.key) or 0
+			for _, entry in page do
+				local uid = tonumber(entry.key) or 0
 				if not names[uid] then
-					local okN, n = pcall(function()
+					local okName, username = pcall(function()
 						return Players:GetNameFromUserIdAsync(uid)
 					end)
-					names[uid] = okN and n or ("Player " .. tostring(e.key))
+					names[uid] = okName and username or ("Player " .. tostring(entry.key))
 				end
-				list[#list + 1] = { name = names[uid], score = e.value }
+				list[#list + 1] = { name = names[uid], score = entry.value }
 			end
-			top = list
+			tops[metric] = list
+		else
+			warn("[Survivors] Global leaderboard read failed (" .. metric .. "): " .. tostring(page))
 		end
-		topAt = os.clock()
-		topBusy = false
+		topAt[metric] = os.clock()
+		topBusy[metric] = false
 	end)
 end
 
@@ -104,10 +133,11 @@ function Persistence.attach(player)
 		return v
 	end
 	local d = {
-		best = 0, kills = 0, coins = 0, chests = 0, up = {}, pending = nil,
+		best = 0, kills = 0, bestKills = 0, bestLevel = 0, coins = 0, chests = 0, up = {}, pending = nil,
 		stats = {}, ach = {}, preferredHero = nil, daily = { day = 0, prog = {}, done = {} }, toastN = 0,
 		loaded = false, dirty = false, timer = false, noSave = false,
 		bestValue = value("Best (s)"), killsValue = value("Total kills"), coinsValue = value("Coins"),
+		bestKillsValue = value("Best kills"), bestLevelValue = value("Best level"),
 	}
 	folder.Parent = player
 	data[player] = d
@@ -139,6 +169,8 @@ function Persistence.attach(player)
 		if ok then
 			if type(saved) == "table" then
 				d.best = math.max(d.best, tonumber(saved.best) or 0)
+				d.bestKills = math.max(0, tonumber(saved.bestKills) or 0)
+				d.bestLevel = math.max(0, tonumber(saved.bestLevel) or (type(saved.stats) == "table" and tonumber(saved.stats.level)) or 0)
 				d.kills += tonumber(saved.kills) or 0
 				d.coins += tonumber(saved.coins) or 0
 				d.chests += tonumber(saved.chests) or 0
@@ -255,28 +287,32 @@ end
 -- po žaidimo: monetos pagal nužudymus ir laiką
 function Persistence.record(player, secs, kills, level)
 	local d = data[player]
-	if not d then
-		return 0
-	end
+	if not d or not d.loaded or d.noSave then return 0 end
+	secs = math.max(0, math.floor(tonumber(secs) or 0))
+	kills = math.max(0, math.floor(tonumber(kills) or 0))
+	level = math.max(1, math.floor(tonumber(level) or 1))
 	local gained = math.floor(kills / 5 + secs / 20)
 	d.coins += gained
 	d.kills += kills
 	if secs > d.best then
 		d.best = secs
-		if topStore and not d.noSave then
-			task.spawn(function()
-				pcall(function()
-					topStore:SetAsync(tostring(player.UserId), secs)
-				end)
-			end)
-		end
+		updateOrdered(player, "time", d.best)
 	end
+	if kills > d.bestKills then
+		d.bestKills = kills
+		updateOrdered(player, "bestKills", kills)
+	end
+	if level > d.bestLevel then
+		d.bestLevel = level
+		updateOrdered(player, "bestLevel", level)
+	end
+	updateOrdered(player, "totalKills", d.kills)
 	touch(player)
 	Persistence.progress(player, "kills", kills, true)
 	Persistence.progress(player, "time", secs, true)
-	if level then
-		Persistence.progress(player, "level", level)
-	end
+	Persistence.progress(player, "level", level)
+	-- At the end of each run, flush profile immediately, not only at the delayed autosave.
+	task.spawn(save, player)
 	return gained
 end
 
@@ -293,10 +329,12 @@ local function state(player, ok, msg)
 	if not d then
 		return { ok = false, msg = "No data" }
 	end
-	refreshTop()
+	for _, metric in { "time", "bestKills", "bestLevel", "totalKills" } do
+		refreshTop(metric)
+	end
 	local server = {}
 	for p, pd in data do
-		server[#server + 1] = { name = p.DisplayName, level = p:GetAttribute("Level") or 1, kills = p:GetAttribute("Kills") or 0, best = pd.best }
+		server[#server + 1] = { name = p.DisplayName, level = p:GetAttribute("Level") or 1, kills = p:GetAttribute("Kills") or 0, best = pd.best, bestKills = pd.bestKills, bestLevel = pd.bestLevel }
 	end
 	table.sort(server, function(a, b)
 		return a.kills > b.kills
@@ -312,7 +350,8 @@ local function state(player, ok, msg)
 	end
 	return {
 		ok = ok ~= false, msg = msg, loaded = d.loaded, coins = d.coins, chests = d.chests, up = d.up,
-		pending = d.pending, best = d.best, kills = d.kills, price = Meta.ChestPrice, top = top, server = server,
+		pending = d.pending, best = d.best, kills = d.kills, bestKills = d.bestKills, bestLevel = d.bestLevel,
+		price = Meta.ChestPrice, top = tops.time or {}, topKills = tops.bestKills or {}, topLevel = tops.bestLevel or {}, topTotalKills = tops.totalKills or {}, server = server,
 		ach = ach, daily = daily, dailyReset = (d.daily.day + 1) * 86400 - os.time(),
 	}
 end
