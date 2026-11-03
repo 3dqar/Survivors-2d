@@ -34,6 +34,7 @@ local offerRemote = newRemote("Offer")  -- serveris -> klientas: patobulinimų p
 local pickRemote = newRemote("Pick")    -- klientas -> serveris: pasirinkimas
 local readyRemote = newRemote("Ready")  -- klientas -> serveris: UI paruoštas
 local joinRemote = newRemote("Join")  -- klientas -> serveris: JOIN pagrindiniame meniu
+local playAgainRemote = newRemote("PlayAgain") -- client -> server: manual restart after team wipe
 Fx.init(fxRemote)
 
 local enemyFolder = Instance.new("Folder")
@@ -1252,11 +1253,11 @@ end
 
 local function endRun()
 	run.state = "GameOver"
-	run.restartAt = os.clock() + Config.RestartDelay
+	run.restartAt = 0 -- no automatic restart; wait for PLAY
 	local secs = math.floor(run.time)
 	workspace:SetAttribute("ResultTime", secs)
 	workspace:SetAttribute("ResultKills", run.kills)
-	workspace:SetAttribute("RestartAt", workspace:GetServerTimeNow() + Config.RestartDelay)
+	workspace:SetAttribute("RestartAt", 0)
 	workspace:SetAttribute("RunState", "GameOver")
 	for player, st in stats do
 		Persistence.record(player, secs, st.kills, st.level)
@@ -1309,7 +1310,7 @@ function restartRun()
 		end
 		if Persistence.hasPending(player) then
 			-- Do not respawn while chest roulette is rolling or KEEP/SELL is undecided.
-			-- Remain dead, safe and able to use the menu across the automatic new-run timer.
+			-- Remain dead, safe and able to use the menu until KEEP/SELL.
 			st.waitingReward = true
 			player:SetAttribute("HasDied", true)
 			publish(player, st)
@@ -1425,14 +1426,12 @@ local tickCount = 0
 
 local function step(dt)
 	if run.state == "GameOver" then
-		if os.clock() >= run.restartAt then
-			restartRun()
-		end
+		-- Game-over screen remains until a player presses PLAY.
 		return
 	end
 
 	local now = os.clock()
-	-- A saved chest reward can outlast the automatic global game-over countdown.
+	-- A saved chest reward can outlast the team game-over screen.
 	-- Resume only that player after the server confirms KEEP or SELL.
 	for player, st in stats do
 		if st.waitingReward and st.joined and not st.spawning and not Persistence.hasPending(player) then
@@ -1555,6 +1554,18 @@ local function onPlayerAdded(player)
 	publish(player, st)
 	-- Stay safely out of the arena until the player presses JOIN.
 end
+
+-- Team run starts again only by an explicit PLAY after GameOver.
+-- One player can start the next shared run; chest owners must choose KEEP/SELL first.
+playAgainRemote.OnServerEvent:Connect(function(player)
+    local st = stats[player]
+    if run.state ~= "GameOver" or not st or not st.joined then return end
+    if Persistence.hasPending(player) then
+        player:SetAttribute("ChestNotice", "Finish your chest reward in MENU before PLAY.")
+        return
+    end
+    restartRun()
+end)
 
 -- JOIN requests are checked server-side; UI calls cannot force an extra life.
 joinRemote.OnServerEvent:Connect(function(player)
