@@ -94,6 +94,7 @@ local function resetStats(st)
 	st.level = 1
 	st.xp = 0
 	st.kills = 0
+	st.joinedAt = 0 -- start time in the current team run, for fair late-join records
 	st.pending = 0
 	st.offer = nil
 	st.offerTitle = ""
@@ -1267,7 +1268,8 @@ local function endRun()
 	for player, st in stats do
 		-- Only participants earned this run's time/score.
 		if st.joined then
-			Persistence.record(player, secs, st.kills, st.level)
+			-- Late joiners only earn the time they were actually in this run.
+			Persistence.record(player, math.max(0, secs - math.floor(st.joinedAt or 0)), st.kills, st.level)
 		end
 	end
 end
@@ -1604,6 +1606,7 @@ joinRemote.OnServerEvent:Connect(function(player)
 		return
 	end
 	st.joined = true
+	st.joinedAt = run.time
 	player:SetAttribute("HasJoined", true)
 	-- Mark as spawning while GetAsync is pending so a teammate's death cannot
 	-- prematurely end the run between JOIN and character creation.
@@ -1665,7 +1668,7 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	local leaving = stats[player]
 	if leaving and leaving.joined and run.state == "Playing" then
-		Persistence.record(player, math.floor(run.time), leaving.kills, leaving.level)
+		Persistence.record(player, math.max(0, math.floor(run.time) - math.floor(leaving.joinedAt or 0)), leaving.kills, leaving.level)
 	end
 	stats[player] = nil
 	Persistence.detach(player)
