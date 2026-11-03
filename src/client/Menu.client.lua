@@ -12,6 +12,7 @@ local Shared = ReplicatedStorage:WaitForChild("SurvivorsShared")
 local Meta = require(Shared:WaitForChild("Meta"))
 local Config = require(Shared:WaitForChild("Config"))
 local SupportProducts = require(Shared:WaitForChild("SupportProducts"))
+local AudioSettings = require(Shared:WaitForChild("AudioSettings"))
 local remotes = ReplicatedStorage:WaitForChild("SurvivorsRemotes")
 local metaRF = remotes:WaitForChild("Meta")
 local joinRemote = remotes:WaitForChild("Join")
@@ -58,6 +59,7 @@ local function sfx(name, vol)
 	local id = Config.Sounds[name]
 	if id and id ~= "" then
 		local s = new("Sound", { SoundId = id, Volume = vol or 0.5 }, SoundService)
+		AudioSettings.assignFX(s)
 		s:Play()
 		task.delay(4, function()
 			s:Destroy()
@@ -91,8 +93,16 @@ new("UISizeConstraint", { MaxSize = Vector2.new(920, 620) }, panel)
 new("UIStroke", { Color = Color3.fromRGB(90, 105, 140), Thickness = 2 }, panel)
 
 local menuTitle = text({ Position = UDim2.fromOffset(24, 9), Size = UDim2.new(1, -95, 0, 46), Text = "MENU", Font = Enum.Font.GothamBlack, TextColor3 = ACC, TextSize = TOUCH and 26 or 34, TextXAlignment = LEFT, ZIndex = 12 }, panel)
-local tabsFrame = new("Frame", { Position = UDim2.fromOffset(14, 64), Size = UDim2.new(1, -28, 0, 42), BackgroundTransparency = 1, ZIndex = 11 }, panel)
-new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, tabsFrame)
+local tabsFrame = new("ScrollingFrame", {
+    Position = UDim2.fromOffset(14, 64), Size = UDim2.new(1, -28, 0, 46),
+    CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X,
+    ScrollBarThickness = 3, ScrollingDirection = Enum.ScrollingDirection.X,
+    BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
+}, panel)
+new("UIListLayout", {
+    FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6),
+    SortOrder = Enum.SortOrder.LayoutOrder,
+}, tabsFrame)
 
 local content = new("ScrollingFrame", {
 	Position = UDim2.fromOffset(14, 116), Size = UDim2.new(1, -28, 1, -190), BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -440,24 +450,42 @@ end
 
 local function renderSupport()
     header("SUPPORT THE CREATOR")
-    local intro = row(62)
-    text({ Position = UDim2.fromOffset(12, 5), Size = UDim2.new(1, -24, 1, -10),
-        Text = "Support Survivors 2D and unlock a permanent cosmetic title!\\n50: yellow tag  |  100: RGB tag  |  1000: RGB tag + trail",
-        TextWrapped = true, TextSize = 14, TextXAlignment = LEFT, ZIndex = 13 }, intro)
+    local intro = row(83)
+    text({
+        Position = UDim2.fromOffset(14, 9), Size = UDim2.new(1, -28, 1, -18),
+        Text = "Enjoy Survivors 2D? Support development and unlock permanent cosmetic rewards.",
+        TextWrapped = true, TextSize = TOUCH and 13 or 15,
+        TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Center,
+        TextColor3 = TXT, ZIndex = 13,
+    }, intro)
+
     for _, product in ipairs(SupportProducts) do
-        local r = row(64)
-        text({ Position = UDim2.fromOffset(12, 4), Size = UDim2.new(0.62, -20, 1, -8),
-            Text = product.title .. "  -  " .. tostring(product.robux) .. " Robux\\n" .. (product.perk or ""),
-            TextSize = 15, TextXAlignment = LEFT, TextWrapped = true, ZIndex = 13 }, r)
+        local r = row(83)
+        local titleLabel = text({
+            Position = UDim2.fromOffset(12, 6), Size = UDim2.new(0.56, -15, 0, 31),
+            Text = product.title .. "  •  " .. tostring(product.robux) .. " R$",
+            TextSize = TOUCH and 13 or 16, TextXAlignment = LEFT,
+            TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 13,
+        }, r)
+        local perkLabel = text({
+            Position = UDim2.fromOffset(12, 40), Size = UDim2.new(0.56, -15, 0, 37),
+            Text = product.perk or "Permanent Supporter title",
+            TextWrapped = true, TextSize = TOUCH and 11 or 13,
+            TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Top,
+            TextColor3 = DIM, ZIndex = 13,
+        }, r)
         local ready = type(product.id) == "number" and product.id > 0
-        button({ Text = ready and ("SUPPORT  " .. tostring(product.robux) .. " R$") or "NOT SET UP",
-            Size = UDim2.new(0.37, -12, 0, 42), AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -12, 0.5, 0), TextSize = TOUCH and 13 or 14,
-            BackgroundColor3 = ready and Color3.fromRGB(70, 175, 115) or Color3.fromRGB(85, 90, 108), ZIndex = 13 }, r, function()
-            if not ready then
-                return
-            end
-            if not (player:GetAttribute("HasJoined") ~= true or (player:GetAttribute("Alive") == false and player:GetAttribute("HasDied") == true)) then
+        button({
+            Text = ready and ("SUPPORT " .. tostring(product.robux) .. " R$") or "NOT SET UP",
+            Size = UDim2.new(0.4, -12, 0, 43),
+            AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0),
+            TextSize = TOUCH and 12 or 14,
+            BackgroundColor3 = ready and Color3.fromRGB(70, 175, 115) or Color3.fromRGB(85, 90, 108),
+            ZIndex = 13,
+        }, r, function()
+            if not ready then return end
+            if not (player:GetAttribute("HasJoined") ~= true
+                or (player:GetAttribute("Alive") == false and player:GetAttribute("HasDied") == true)) then
                 return
             end
             local ok, err = pcall(function()
@@ -468,17 +496,98 @@ local function renderSupport()
             end
         end)
     end
-    if not (SupportProducts[1].id > 0 and SupportProducts[2].id > 0 and SupportProducts[3].id > 0) then
-        local r = row(44)
-        text({ Size = UDim2.new(1, -24, 1, 0), Position = UDim2.fromOffset(12, 0),
-            Text = "Creator setup needed: set three Developer Product IDs in SupportProducts.lua.",
-            TextWrapped = true, TextSize = 12, TextXAlignment = LEFT, TextColor3 = DIM, ZIndex = 13 }, r)
+end
+
+local function renderSettings()
+    header("AUDIO SETTINGS")
+    local intro = row(57)
+    text({
+        Position = UDim2.fromOffset(14, 3), Size = UDim2.new(1, -28, 1, -6),
+        Text = "Choose how loud music and game sound effects should be. Changes apply instantly.",
+        TextSize = 14, TextWrapped = true, TextXAlignment = LEFT,
+        TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 13,
+    }, intro)
+
+    local function volumeRow(kind, description)
+        local r = row(102)
+        text({
+            Position = UDim2.fromOffset(14, 8), Size = UDim2.new(0.6, 0, 0, 23),
+            Text = kind:upper(), TextSize = 17, TextXAlignment = LEFT,
+            TextColor3 = ACC, ZIndex = 13,
+        }, r)
+        local percent = text({
+            Position = UDim2.new(0.6, 0, 0, 8), Size = UDim2.new(0.4, -14, 0, 23),
+            Text = "", TextSize = 16, TextXAlignment = RIGHT, ZIndex = 13,
+        }, r)
+        local minus = button({
+            Position = UDim2.fromOffset(12, 39), Size = UDim2.fromOffset(42, 42),
+            Text = "−", TextSize = 25, BackgroundColor3 = BG, ZIndex = 13,
+        }, r, function() end)
+        local plus = button({
+            Position = UDim2.new(1, -54, 0, 39), Size = UDim2.fromOffset(42, 42),
+            Text = "+", TextSize = 23, BackgroundColor3 = BG, ZIndex = 13,
+        }, r, function() end)
+        local track = new("TextButton", {
+            Text = "", Position = UDim2.fromOffset(66, 56),
+            Size = UDim2.new(1, -132, 0, 14), BackgroundColor3 = BG,
+            AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 13,
+        }, r)
+        round(track, 7)
+        local fill = new("Frame", {
+            Size = UDim2.fromScale(AudioSettings.get(kind), 1), BackgroundColor3 = ACC,
+            BorderSizePixel = 0, ZIndex = 14,
+        }, track)
+        round(fill, 7)
+        local knob = new("Frame", {
+            Size = UDim2.fromOffset(23, 23), AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(AudioSettings.get(kind), 0.5),
+            BackgroundColor3 = Color3.fromRGB(245, 247, 255),
+            BorderSizePixel = 0, ZIndex = 15,
+        }, track)
+        round(knob, 12)
+        local function set(value)
+            AudioSettings.set(kind, math.clamp(value, 0, 1))
+            local actual = AudioSettings.get(kind)
+            percent.Text = tostring(math.floor(actual * 100 + 0.5)) .. "%"
+            fill.Size = UDim2.fromScale(actual, 1)
+            knob.Position = UDim2.fromScale(actual, 0.5)
+        end
+        local function positionToValue(x)
+            return (x - track.AbsolutePosition.X) / math.max(1, track.AbsoluteSize.X)
+        end
+        minus.Activated:Connect(function() set(AudioSettings.get(kind) - 0.1) end)
+        plus.Activated:Connect(function() set(AudioSettings.get(kind) + 0.1) end)
+        track.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                set(positionToValue(input.Position.X))
+            end
+        end)
+        track.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement
+                and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                set(positionToValue(input.Position.X))
+            elseif input.UserInputType == Enum.UserInputType.Touch then
+                set(positionToValue(input.Position.X))
+            end
+        end)
+        set(AudioSettings.get(kind))
+        local desc = row(31)
+        desc.BackgroundTransparency = 1
+        text({
+            Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0),
+            Text = description, TextSize = 12, TextColor3 = DIM,
+            TextXAlignment = LEFT, TextWrapped = true, ZIndex = 13,
+        }, desc)
     end
+
+    volumeRow("Music", "Playlist songs – 0% mutes only background music.")
+    volumeRow("FX", "Combat hits, menu clicks, chests, upgrades and alerts.")
 end
 
 local tabButtons = {}
-for _, name in { "Leaderboard", "Chests", "Upgrades", "Goals", "Support" } do
-	tabButtons[name] = button({ Text = name, Size = UDim2.new(0.2, -5, 1, 0), BackgroundColor3 = PANEL, TextSize = TOUCH and 15 or 14, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 12 }, tabsFrame, function()
+for _, name in { "Leaderboard", "Chests", "Upgrades", "Goals", "Support", "Settings" } do
+	tabButtons[name] = button({ Text = name, Size = UDim2.fromOffset(117, 40), BackgroundColor3 = PANEL, TextSize = TOUCH and 15 or 14, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 12 }, tabsFrame, function()
 		tab = name
 		sfx("click", 0.3)
 		render()
@@ -513,6 +622,8 @@ function render()
 		renderGoals()
 	elseif tab == "Support" then
 		renderSupport()
+	elseif tab == "Settings" then
+		renderSettings()
 	else
 		renderUpgrades()
 	end
