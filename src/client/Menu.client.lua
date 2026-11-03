@@ -354,7 +354,9 @@ local closeBtn = button({ Text = "X", Size = UDim2.fromOffset(48, 42), AnchorPoi
 	end
 end)
 
-local joinBtn = button({
+-- Declare before creating the button: Luau initializer callbacks otherwise capture a global nil.
+local joinBtn
+joinBtn = button({
 	Text = "JOIN", Size = TOUCH and UDim2.fromOffset(150, 52) or UDim2.fromOffset(172, 54),
 	AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -18, 1, -14),
 	BackgroundColor3 = Color3.fromRGB(55, 185, 107), TextSize = 23, ZIndex = 12,
