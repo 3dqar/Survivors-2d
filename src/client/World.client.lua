@@ -30,6 +30,7 @@ local function sfx(name, vol, pitch, minGap)
 	s.Volume = vol or 0.5
 	s.PlaybackSpeed = pitch or (0.9 + math.random() * 0.2)
 	s.Parent = SoundService
+	AudioSettings.assignFX(s)
 	s:Play()
 	task.delay(4, function()
 		s:Destroy()
