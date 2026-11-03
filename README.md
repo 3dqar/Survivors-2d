@@ -70,6 +70,16 @@ If repository already exists, clone it first and copy the project files into tha
 6. Run `rojo serve default.project.json` and connect Roblox Studio's Rojo plugin. Publish updates.
 7. For Studio DataStore verification, enable **Game Settings → Security → Enable Studio Access to API Services** (do not use production data for destructive tests).
 
-After any of the three confirmed purchases, `Support.server.lua` records permanent VIP in `SurvivorsVIPV1` DataStore, shows an overhead VIP tag and animated RGB Trail. Robux are settled by Roblox; this script must be the **only** `MarketplaceService.ProcessReceipt` handler in the experience.
+After any of the three confirmed purchases, `Support.server.lua` records permanent Supporter tier in `SurvivorsVIPV1` DataStore, shows an overhead VIP tag and animated RGB Trail. Robux are settled by Roblox; this script must be the **only** `MarketplaceService.ProcessReceipt` handler in the experience.
 
-Menu Support tab appears only after death. Purchases use the official Roblox confirmation UI and must be tested in a published experience before release. VIP is cosmetic only, not pay-to-win.
+Menu Support tab appears only after death. Purchases use the official Roblox confirmation UI and must be tested in a published experience before release. Supporter tiers are cosmetic only, not pay-to-win.
+
+## Supporter tiers (configured)
+
+| Product | Product ID | Perk |
+|---|---:|---|
+| Small Support — 50 R$ | `3727986151` | Yellow **★ SUPPORTER ★** overhead title |
+| Big Support — 100 R$ | `3727986181` | Animated RGB **★ SUPPORTER ★** overhead title |
+| Legend Support — 1000 R$ | `3727986218` | Animated RGB **★ SUPPORTER ★** overhead title and RGB trail |
+
+The player's highest purchased tier persists in `SurvivorsVIPV1` DataStore (`tier` key, with migration of prior `vip=true` records). Buying a lower tier never downgrades cosmetics. The Roblox experience must be published; verify purchases and data saving with test accounts.
