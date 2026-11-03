@@ -57,3 +57,19 @@ If repository already exists, clone it first and copy the project files into tha
 - Publish the experience; for Studio testing enable Game Settings > Security > Enable Studio Access to API Services.
 - These records start from the first run after v6 is installed; older unrecorded best-run kills cannot be reconstructed.
 - Test the DataStore behavior in a published test experience before release.
+
+## Support donations + VIP (50 / 100 / 1000 Robux)
+
+**Use Developer Products, not Game Passes** (support can be purchased more than once).
+
+1. Publish your Roblox experience.
+2. Open [Creator Dashboard](https://create.roblox.com/dashboard/creations) → your experience → **Monetization → Developer Products**.
+3. Create three products: Small Support (50 R$), Big Support (100 R$), Legend Support (1000 R$). Use a name, description, image, category and set the Robux price.
+4. From each product's **⋯** menu click **Copy Asset ID**.
+5. Paste those IDs in `src/shared/SurvivorsShared/SupportProducts.lua` by replacing each `id = 0`. Product ID is **not** its Robux price!
+6. Run `rojo serve default.project.json` and connect Roblox Studio's Rojo plugin. Publish updates.
+7. For Studio DataStore verification, enable **Game Settings → Security → Enable Studio Access to API Services** (do not use production data for destructive tests).
+
+After any of the three confirmed purchases, `Support.server.lua` records permanent VIP in `SurvivorsVIPV1` DataStore, shows an overhead VIP tag and animated RGB Trail. Robux are settled by Roblox; this script must be the **only** `MarketplaceService.ProcessReceipt` handler in the experience.
+
+Menu Support tab appears only after death. Purchases use the official Roblox confirmation UI and must be tested in a published experience before release. VIP is cosmetic only, not pay-to-win.
