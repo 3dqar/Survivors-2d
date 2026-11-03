@@ -83,3 +83,26 @@ Menu Support tab appears only after death. Purchases use the official Roblox con
 | Legend Support — 1000 R$ | `3727986218` | Animated RGB **★ SUPPORTER ★** overhead title and RGB trail |
 
 The player's highest purchased tier persists in `SurvivorsVIPV1` DataStore (`tier` key, with migration of prior `vip=true` records). Buying a lower tier never downgrades cosmetics. The Roblox experience must be published; verify purchases and data saving with test accounts.
+
+## Pre-launch audit (2026-11-03)
+
+Static GitHub code review completed; **Roblox Studio / public server runtime has NOT been tested by the reviewer**.
+
+### Fixed in code
+- Only players who pressed JOIN are included in end-of-run lifetime and global leaderboard records.
+- Chest KEEP/SELL cannot be skipped by teammate revival or a new run; pending rewards survive until resolved.
+- JOIN and restart wait for profile loading before spawning, so persisted pending rewards cannot be bypassed by the first frame.
+- JOIN's in-flight loading counts as spawning, preventing multiplayer round-end races.
+- Profile DataStore writes for a single player are serialized to reduce stale-write losses.
+- No automatic game-over countdown; PLAY triggers a server-validated restart.
+- Supporter Developer Products use IDs 3727986151, 3727986181, 3727986218.
+
+### Required before advertising
+1. In a **separate test experience** published to Roblox, enable Studio API Services only if you want live DataStore tests. Do not let destructive Studio tests write production records.
+2. Test on desktop + mobile, at least 2 players: first JOIN, selecting hero and weapon, death, revive, GAME OVER -> MENU -> CS-style chest roulette -> KEEP and SELL, then PLAY.
+3. Test that best kills, best level, total kills, best survival and coins survive rejoining, and global leaderboards refresh.
+4. Run authorized purchase tests for all three Developer Products. Roblox receipt failures return NotProcessedYet and must be retried; verify Supporter tier 1 / 2 / 3 and rejoin.
+5. Replace any invalid/inaccessible audio IDs. Previous Studio output reported `rbxassetid://203785492` (asset type mismatch) and `rbxassetid://1603813` (permission denied). Verify sequential music and separate FX volume on each device.
+6. Confirm all linked product IDs belong to the **same Roblox experience** and check public experience permissions, title, thumbnail, genre, age/maturity settings and monetization policies.
+
+Limitations: Volume settings persist for the current client session only. Direct runtime/monetization tests are still required for release confidence.
