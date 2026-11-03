@@ -1,5 +1,5 @@
 -- StarterPlayer/StarterPlayerScripts/Menu_client  (LocalScript)
--- Meniu (mygtukas MENU arba klavišas M): Leaderboard / Chests / Upgrades / Goals (pasiekimai + dienos iššūkiai).
+-- Meniu tik po mirties (MENU arba M): Leaderboard / Chests / Upgrades / Goals (pasiekimai + dienos iššūkiai).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
@@ -129,6 +129,9 @@ local function header(t)
 end
 
 local function renderBoard()
+	header(string.format("YOUR ALL-TIME RECORDS  |  Best kills: %d   Best level: %d", S.bestKills or 0, S.bestLevel or 0))
+	local r0 = row(30)
+	text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -20, 1, 0), Text = string.format("Total kills: %d    Longest run: %s", S.kills or 0, fmt(S.best)), TextXAlignment = LEFT, TextSize = 14, ZIndex = 13 }, r0)
 	header("THIS SERVER  -  current run")
 	for i, e in S.server do
 		local r = row(30)
@@ -138,15 +141,23 @@ local function renderBoard()
 			Text = string.format("Lv %d   Kills %d   Best %s", e.level, e.kills, fmt(e.best)),
 		}, r)
 	end
-	header("GLOBAL TOP  -  best survival time")
-	if #S.top == 0 then
-		local r = row(30)
-		text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -20, 1, 0), Text = "No global data yet (publish the game and finish a run).", TextXAlignment = LEFT, TextSize = 14, TextColor3 = DIM, ZIndex = 13 }, r)
-	end
-	for i, e in S.top do
-		local r = row(30)
-		text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.6, 0, 1, 0), Text = i .. ". " .. e.name, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13 }, r)
-		text({ Position = UDim2.new(0.6, 0, 0, 0), Size = UDim2.new(0.4, -10, 1, 0), Text = fmt(e.score), TextXAlignment = RIGHT, TextColor3 = Color3.fromRGB(255, 215, 90), ZIndex = 13 }, r)
+	local boards = {
+		{ "GLOBAL TOP - most kills in one run", S.topKills, false },
+		{ "GLOBAL TOP - highest level", S.topLevel, false },
+		{ "GLOBAL TOP - total lifetime kills", S.topTotalKills, false },
+		{ "GLOBAL TOP - longest survival", S.top, true },
+	}
+	for _, board in boards do
+		header(board[1])
+		if #(board[2] or {}) == 0 then
+			local empty = row(30)
+			text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -20, 1, 0), Text = "No saved scores yet (publish + enable API access in Studio).", TextXAlignment = LEFT, TextSize = 13, TextColor3 = DIM, ZIndex = 13 }, empty)
+		end
+		for i, e in board[2] or {} do
+			local r = row(30)
+			text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.6, 0, 1, 0), Text = i .. ". " .. e.name, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13 }, r)
+			text({ Position = UDim2.new(0.6, 0, 0, 0), Size = UDim2.new(0.4, -10, 1, 0), Text = board[3] and fmt(e.score) or tostring(e.score), TextXAlignment = RIGHT, TextColor3 = Color3.fromRGB(255, 215, 90), ZIndex = 13 }, r)
+		end
 	end
 end
 
@@ -274,7 +285,23 @@ button({ Text = "X", Size = UDim2.fromOffset(48, 40), AnchorPoint = Vector2.new(
 	panel.Visible = false
 end)
 
+local function canOpenMenu()
+	return player:GetAttribute("Alive") == false and player:GetAttribute("HasDied") == true
+end
+
+local function syncMenuAccess()
+	local allowed = canOpenMenu()
+	menuBtn.Visible = allowed
+	if not allowed then
+		panel.Visible = false
+	end
+end
+
 local function toggle()
+	if not canOpenMenu() then
+		panel.Visible = false
+		return
+	end
 	panel.Visible = not panel.Visible
 	if panel.Visible then
 		if S and S.pending then
@@ -286,6 +313,9 @@ local function toggle()
 end
 
 menuBtn.Activated:Connect(toggle)
+player:GetAttributeChangedSignal("Alive"):Connect(syncMenuAccess)
+player:GetAttributeChangedSignal("HasDied"):Connect(syncMenuAccess)
+syncMenuAccess()
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.M then
 		toggle()
