@@ -10,6 +10,7 @@ local Defs = require(ReplicatedStorage:WaitForChild("SurvivorsShared"):WaitForCh
 local fxRemote = ReplicatedStorage:WaitForChild("SurvivorsRemotes"):WaitForChild("Fx")
 local Config = require(ReplicatedStorage:WaitForChild("SurvivorsShared"):WaitForChild("Config"))
 local SoundService = game:GetService("SoundService")
+local AudioSettings = require(ReplicatedStorage:WaitForChild("SurvivorsShared"):WaitForChild("AudioSettings"))
 local Lighting = game:GetService("Lighting")
 
 -- garso efektai (ID keičiami Config.Sounds)
