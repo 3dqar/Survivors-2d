@@ -4,11 +4,13 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local player = Players.LocalPlayer
 local Shared = ReplicatedStorage:WaitForChild("SurvivorsShared")
 local Meta = require(Shared:WaitForChild("Meta"))
 local Config = require(Shared:WaitForChild("Config"))
+local SupportProducts = require(Shared:WaitForChild("SupportProducts"))
 local metaRF = ReplicatedStorage:WaitForChild("SurvivorsRemotes"):WaitForChild("Meta")
 
 local BG, PANEL, ACC, TXT = Color3.fromRGB(14, 16, 28), Color3.fromRGB(30, 34, 56), Color3.fromRGB(90, 170, 255), Color3.fromRGB(235, 238, 250)
@@ -241,9 +243,48 @@ local function renderGoals()
 	end
 end
 
+
+local function renderSupport()
+    header("SUPPORT THE CREATOR")
+    local intro = row(62)
+    text({ Position = UDim2.fromOffset(12, 5), Size = UDim2.new(1, -24, 1, -10),
+        Text = "Enjoy Survivors 2D? You can support its development with Robux!\\nCompletely optional. No gameplay advantages or rewards.",
+        TextWrapped = true, TextSize = 14, TextXAlignment = LEFT, ZIndex = 13 }, intro)
+    for _, product in ipairs(SupportProducts) do
+        local r = row(64)
+        text({ Position = UDim2.fromOffset(12, 4), Size = UDim2.new(0.62, -20, 1, -8),
+            Text = product.title .. "  -  " .. tostring(product.robux) .. " Robux",
+            TextSize = 15, TextXAlignment = LEFT, TextWrapped = true, ZIndex = 13 }, r)
+        local ready = type(product.id) == "number" and product.id > 0
+        button({ Text = ready and ("SUPPORT  " .. tostring(product.robux) .. " R$") or "NOT SET UP",
+            Size = UDim2.new(0.37, -12, 0, 42), AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, -12, 0.5, 0), TextSize = TOUCH and 13 or 14,
+            BackgroundColor3 = ready and Color3.fromRGB(70, 175, 115) or Color3.fromRGB(85, 90, 108), ZIndex = 13 }, r, function()
+            if not ready then
+                return
+            end
+            if player:GetAttribute("Alive") ~= false or player:GetAttribute("HasDied") ~= true then
+                return
+            end
+            local ok, err = pcall(function()
+                MarketplaceService:PromptProductPurchase(player, product.id)
+            end)
+            if not ok then
+                warn("[Survivors Support] Could not open purchase dialog: " .. tostring(err))
+            end
+        end)
+    end
+    if not (SupportProducts[1].id > 0 and SupportProducts[2].id > 0 and SupportProducts[3].id > 0) then
+        local r = row(44)
+        text({ Size = UDim2.new(1, -24, 1, 0), Position = UDim2.fromOffset(12, 0),
+            Text = "Creator setup needed: set three Developer Product IDs in SupportProducts.lua.",
+            TextWrapped = true, TextSize = 12, TextXAlignment = LEFT, TextColor3 = DIM, ZIndex = 13 }, r)
+    end
+end
+
 local tabButtons = {}
-for _, name in { "Leaderboard", "Chests", "Upgrades", "Goals" } do
-	tabButtons[name] = button({ Text = name, Size = UDim2.new(0.25, -5, 1, 0), BackgroundColor3 = PANEL, TextSize = TOUCH and 15 or 14, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 12 }, tabsFrame, function()
+for _, name in { "Leaderboard", "Chests", "Upgrades", "Goals", "Support" } do
+	tabButtons[name] = button({ Text = name, Size = UDim2.new(0.2, -5, 1, 0), BackgroundColor3 = PANEL, TextSize = TOUCH and 15 or 14, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 12 }, tabsFrame, function()
 		tab = name
 		sfx("click", 0.3)
 		render()
@@ -276,6 +317,8 @@ function render()
 		renderChests()
 	elseif tab == "Goals" then
 		renderGoals()
+	elseif tab == "Support" then
+		renderSupport()
 	else
 		renderUpgrades()
 	end
