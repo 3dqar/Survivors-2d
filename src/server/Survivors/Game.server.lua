@@ -1605,6 +1605,9 @@ joinRemote.OnServerEvent:Connect(function(player)
 	end
 	st.joined = true
 	player:SetAttribute("HasJoined", true)
+	-- Mark as spawning while GetAsync is pending so a teammate's death cannot
+	-- prematurely end the run between JOIN and character creation.
+	if run.state == "Playing" then st.spawning = true end
 	-- Persistent pending reward is checked again AFTER loading in the spawn task.
 	if run.state ~= "Playing" then
 		-- Joined during the result screen: automatically enter on the next run.
@@ -1629,17 +1632,24 @@ joinRemote.OnServerEvent:Connect(function(player)
 		if stats[player] ~= st then return end
 		if not loaded then
 			warn("[Survivors] Could not load profile before JOIN for " .. player.UserId)
+			st.spawning = false
 			st.joined = false
 			player:SetAttribute("HasJoined", false)
+			checkGameOver()
 			return
 		end
 		if Persistence.hasPending(player) then
+			st.spawning = false
 			st.waitingReward = true
 			player:SetAttribute("HasDied", true)
 			publish(player, st)
+			checkGameOver()
 			return
 		end
-		if run.state ~= "Playing" then return end
+		if run.state ~= "Playing" then
+			st.spawning = false
+			return
+		end
 		spawnPlayer(player, st, nil, 1)
 		if stats[player] == st and run.state == "Playing" and st.alive then
 			sendHeroOffer(player, st)
