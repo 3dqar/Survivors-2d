@@ -46,10 +46,12 @@ while true do
             -- Ended is fired at natural completion. If audio is removed or invalid,
             -- move on rather than hanging forever.
             local deadline = os.clock() + 300
+            local knownLength = false
             while not finished and song.Parent == folder and os.clock() < deadline do
                 task.wait(0.25)
-                if song.IsLoaded and song.TimeLength > 0 then
-                    deadline = math.max(deadline, os.clock() + song.TimeLength + 5)
+                if not knownLength and song.IsLoaded and song.TimeLength > 0 then
+                    knownLength = true
+                    deadline = os.clock() + song.TimeLength + 10
                 end
             end
             connection:Disconnect()
