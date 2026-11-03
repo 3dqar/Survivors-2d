@@ -283,6 +283,11 @@ local function choose(index)
 end
 
 local function showOffer(data)
+	-- Ignore stale selection prompts until the player explicitly pressed JOIN.
+	if player:GetAttribute("HasJoined") ~= true then
+		hideOffer()
+		return
+	end
 	for _, c in cards do
 		c:Destroy()
 	end
@@ -363,6 +368,11 @@ local function showOffer(data)
 end
 
 offerRemote.OnClientEvent:Connect(showOffer)
+player:GetAttributeChangedSignal("HasJoined"):Connect(function()
+	if player:GetAttribute("HasJoined") ~= true then
+		hideOffer()
+	end
+end)
 
 local keyMap = {
 	[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4,
@@ -428,4 +438,11 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 end)
 
-readyRemote:FireServer()
+-- Request a pending offer only after JOIN, not from the title screen.
+local function requestPendingOffer()
+	if player:GetAttribute("HasJoined") == true then
+		readyRemote:FireServer()
+	end
+end
+player:GetAttributeChangedSignal("HasJoined"):Connect(requestPendingOffer)
+requestPendingOffer()
