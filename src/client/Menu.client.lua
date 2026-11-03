@@ -125,7 +125,7 @@ local function act(action)
 		render()
 		if action == "open" and res.ok and res.pending and startChestAnimation then
 			startChestAnimation(res.pending, true)
-		elseif (action == "keep" or action == "sell") and startChestAnimation then
+		elseif (action == "keep" or action == "sell") and res.ok and not res.pending and startChestAnimation then
 			startChestAnimation(nil, false)
 		end
 	end
