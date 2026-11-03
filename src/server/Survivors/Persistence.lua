@@ -37,6 +37,7 @@ local data = {}
 local tops, topAt, topBusy, names = {}, {}, {}, {}
 
 local function refreshValues(d)
+	if d.player then d.player:SetAttribute("ChestPending", d.pending ~= nil) end
 	d.bestValue.Value = d.best
 	d.killsValue.Value = d.kills
 	d.coinsValue.Value = d.coins
@@ -133,6 +134,7 @@ function Persistence.attach(player)
 		return v
 	end
 	local d = {
+		player = player,
 		best = 0, kills = 0, bestKills = 0, bestLevel = 0, coins = 0, chests = 0, up = {}, pending = nil,
 		stats = {}, ach = {}, preferredHero = nil, daily = { day = 0, prog = {}, done = {} }, toastN = 0,
 		loaded = false, dirty = false, timer = false, noSave = false,
