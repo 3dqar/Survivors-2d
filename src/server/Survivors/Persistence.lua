@@ -357,6 +357,12 @@ local function state(player, ok, msg)
 end
 Persistence.state = state
 
+-- The game loop holds a dead player safely in the reward screen until KEEP or SELL.
+function Persistence.hasPending(player)
+    local d = data[player]
+    return d ~= nil and d.pending ~= nil
+end
+
 function Persistence.open(player)
 	local d = data[player]
 	if not d or not d.loaded then
