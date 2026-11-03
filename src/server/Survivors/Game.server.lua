@@ -1184,6 +1184,7 @@ function killPlayer(player, st)
 		return
 	end
 	st.alive = false
+	player:SetAttribute("HasDied", true)
 	st.hp = 0
 	st.reviveAt = os.clock() + Config.ReviveSeconds
 	local deathRoot = getRoot(player)
@@ -1298,6 +1299,7 @@ function restartRun()
 	workspace:SetAttribute("RunTime", 0)
 	for player, st in stats do
 		resetStats(st)
+		player:SetAttribute("HasDied", false)
 		task.spawn(function()
 			spawnPlayer(player, st, nil, 1)
 			Persistence.waitLoaded(player, 10)
@@ -1510,6 +1512,7 @@ end)
 local function onPlayerAdded(player)
 	local st = newStats(player)
 	stats[player] = st
+	player:SetAttribute("HasDied", false)
 	Persistence.attach(player)
 
 	if run.state == "Playing" then
