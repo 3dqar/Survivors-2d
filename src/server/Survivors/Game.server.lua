@@ -33,6 +33,7 @@ local fxRemote = newRemote("Fx")        -- serveris -> klientai: efektai
 local offerRemote = newRemote("Offer")  -- serveris -> klientas: patobulinimų pasirinkimas
 local pickRemote = newRemote("Pick")    -- klientas -> serveris: pasirinkimas
 local readyRemote = newRemote("Ready")  -- klientas -> serveris: UI paruoštas
+local joinRemote = newRemote("Join")  -- klientas -> serveris: JOIN pagrindiniame meniu
 Fx.init(fxRemote)
 
 local enemyFolder = Instance.new("Folder")
@@ -1267,8 +1268,10 @@ function checkGameOver()
 	end
 	local any = false
 	for _, st in stats do
-		any = true
-		if st.alive or st.spawning then
+		if st.joined then
+			any = true
+		end
+		if st.joined and (st.alive or st.spawning) then
 			return
 		end
 	end
@@ -1299,6 +1302,10 @@ function restartRun()
 	workspace:SetAttribute("RunTime", 0)
 	for player, st in stats do
 		resetStats(st)
+		if not st.joined then
+			publish(player, st)
+			continue
+		end
 		player:SetAttribute("HasDied", false)
 		task.spawn(function()
 			spawnPlayer(player, st, nil, 1)
@@ -1511,32 +1518,49 @@ end)
 ---------------------------------------------------------------------
 local function onPlayerAdded(player)
 	local st = newStats(player)
+	st.joined = false
 	stats[player] = st
+	player:SetAttribute("HasJoined", false)
 	player:SetAttribute("HasDied", false)
 	Persistence.attach(player)
-
-	if run.state == "Playing" then
-		-- vėlai prisijungusiems duodami keli "pasivijimo" lygiai
-		local sum, n = 0, 0
-		for p, o in stats do
-			if p ~= player then
-				sum += o.level
-				n += 1
-			end
-		end
-		if n > 0 then
-			st.pending = math.floor((sum / n - 1) * 0.5)
-			st.level = 1 + st.pending
-		end
-		task.spawn(function()
-			spawnPlayer(player, st, nil, 1)
-			Persistence.waitLoaded(player, 10)
-			if stats[player] == st and run.state == "Playing" then
-				sendHeroOffer(player, st)
-			end
-		end)
-	end
+	publish(player, st)
+	-- Stay safely out of the arena until the player presses JOIN.
 end
+
+-- JOIN requests are checked server-side; UI calls cannot force an extra life.
+joinRemote.OnServerEvent:Connect(function(player)
+	local st = stats[player]
+	if not st or st.joined or st.spawning then
+		return
+	end
+	st.joined = true
+	player:SetAttribute("HasJoined", true)
+	if run.state ~= "Playing" then
+		-- Joined during the result screen: automatically enter on the next run.
+		return
+	end
+
+	-- Late joiners catch up to the current team's progress.
+	local sum, count = 0, 0
+	for other, entry in stats do
+		if other ~= player and entry.joined then
+			sum += entry.level
+			count += 1
+		end
+	end
+	if count > 0 then
+		st.pending = math.max(0, math.floor((sum / count - 1) * 0.5))
+		st.level = 1 + st.pending
+	end
+	task.spawn(function()
+		if stats[player] ~= st or run.state ~= "Playing" then return end
+		spawnPlayer(player, st, nil, 1)
+		Persistence.waitLoaded(player, 10)
+		if stats[player] == st and run.state == "Playing" and st.alive then
+			sendHeroOffer(player, st)
+		end
+	end)
+end)
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 for _, player in Players:GetPlayers() do
@@ -1545,7 +1569,7 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	local leaving = stats[player]
-	if leaving and run.state == "Playing" then
+	if leaving and leaving.joined and run.state == "Playing" then
 		Persistence.record(player, math.floor(run.time), leaving.kills, leaving.level)
 	end
 	stats[player] = nil
