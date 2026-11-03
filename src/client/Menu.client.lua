@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local Shared = ReplicatedStorage:WaitForChild("SurvivorsShared")
@@ -100,6 +101,8 @@ local content = new("ScrollingFrame", {
 new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, content)
 
 local S, tab, busy = nil, "Leaderboard", false
+local startChestAnimation
+local chestAnimating = false
 local order = 0
 local render
 
@@ -114,12 +117,17 @@ local function act(action)
 	busy = false
 	if ok and res then
 		S = res
-		if action == "open" and res.ok then
+		if action == "open" and res.ok and res.pending then
 			sfx("chest", 0.7)
 		elseif action ~= "state" then
 			sfx("click", 0.4)
 		end
 		render()
+		if action == "open" and res.ok and res.pending and startChestAnimation then
+			startChestAnimation(res.pending, true)
+		elseif (action == "keep" or action == "sell") and startChestAnimation then
+			startChestAnimation(nil, false)
+		end
 	end
 end
 
@@ -170,41 +178,221 @@ local function renderBoard()
 end
 
 local function renderChests()
-	local r = row(70)
-	text({
-		Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -250, 1, 0), TextXAlignment = LEFT, TextWrapped = true, TextSize = 15, ZIndex = 13,
-		Text = "Chests: " .. S.chests .. "\nA boss gives everyone one chest. Chests give permanent upgrades.",
-	}, r)
-	button({ Text = "OPEN", Size = UDim2.fromOffset(100, 42), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -128, 0.5, 0), ZIndex = 13 }, r, function()
-		act("open")
-	end)
-	button({
-		Text = "BUY " .. S.price, Size = UDim2.fromOffset(110, 42), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
-		BackgroundColor3 = Color3.fromRGB(240, 190, 70), TextColor3 = Color3.fromRGB(30, 25, 10), ZIndex = 13,
-	}, r, function()
-		act("buy")
-	end)
-	if S.msg then
-		local m = row(30)
-		text({ Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -24, 1, 0), Text = S.msg, TextXAlignment = LEFT, TextSize = 15, TextColor3 = S.ok and Color3.fromRGB(120, 230, 150) or Color3.fromRGB(255, 130, 130), ZIndex = 13 }, m)
-	end
-	if S.pending then
-		local p = S.pending
-		local st, rar = Meta.Stats[p.stat], Meta.Rarities[p.r]
-		local lv = S.up[p.stat] or 0
-		local c = row(130)
-		text({ Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 30), Text = rar.name:upper() .. "  -  " .. st.name, TextXAlignment = LEFT, TextColor3 = rar.color, TextSize = 22, Font = Enum.Font.GothamBlack, ZIndex = 13 }, c)
-		text({
-			Position = UDim2.fromOffset(12, 40), Size = UDim2.new(1, -24, 0, 40), TextXAlignment = LEFT, TextWrapped = true, TextSize = 14, TextColor3 = DIM, ZIndex = 13,
-			Text = string.format("%s\n+%d level  (now Lv %d / %d)", st.text, rar.lv, lv, Meta.MaxLevel),
-		}, c)
-		button({ Text = "KEEP", Size = UDim2.fromOffset(140, 38), Position = UDim2.new(0, 12, 1, -48), BackgroundColor3 = Color3.fromRGB(70, 190, 110), ZIndex = 13 }, c, function()
-			act("keep")
-		end)
-		button({ Text = "SELL +" .. rar.sell, Size = UDim2.fromOffset(150, 38), Position = UDim2.new(0, 164, 1, -48), BackgroundColor3 = Color3.fromRGB(240, 190, 70), TextColor3 = Color3.fromRGB(30, 25, 10), ZIndex = 13 }, c, function()
-			act("sell")
-		end)
-	end
+    local r = row(74)
+    text({
+        Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -240, 1, 0),
+        TextXAlignment = LEFT, TextWrapped = true, TextSize = 15, ZIndex = 13,
+        Text = "Chests: " .. tostring(S.chests or 0) .. "\nOpen a chest to roll a permanent upgrade!",
+    }, r)
+    button({
+        Text = S.pending and "VIEW REWARD" or "OPEN",
+        Size = UDim2.fromOffset(S.pending and 125 or 90, 42),
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -128, 0.5, 0), ZIndex = 13,
+    }, r, function()
+        if chestAnimating then return end
+        if S.pending then
+            if startChestAnimation then startChestAnimation(S.pending, false) end
+        else
+            act("open")
+        end
+    end)
+    button({
+        Text = "BUY " .. tostring(S.price or 0), Size = UDim2.fromOffset(110, 42),
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(240, 190, 70),
+        TextColor3 = Color3.fromRGB(30, 25, 10), ZIndex = 13,
+    }, r, function()
+        if not chestAnimating then act("buy") end
+    end)
+    if S.msg then
+        local m = row(34)
+        text({
+            Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -24, 1, 0),
+            Text = S.msg, TextXAlignment = LEFT, TextSize = 14,
+            TextColor3 = S.ok and Color3.fromRGB(120, 230, 150) or Color3.fromRGB(255, 130, 130),
+            TextWrapped = true, ZIndex = 13,
+        }, m)
+    end
+    if S.pending then
+        local p = S.pending
+        local st, rarity = Meta.Stats[p.stat], Meta.Rarities[p.r]
+        if st and rarity then
+            local preview = row(70)
+            new("UIStroke", { Color = rarity.color, Thickness = 1.5 }, preview)
+            text({
+                Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 28),
+                Text = rarity.name:upper() .. "  •  " .. st.name, Font = Enum.Font.GothamBlack,
+                TextColor3 = rarity.color, TextXAlignment = LEFT, TextSize = 19, ZIndex = 13,
+            }, preview)
+            text({
+                Position = UDim2.fromOffset(12, 37), Size = UDim2.new(1, -24, 0, 24),
+                Text = "You have an unclaimed reward. Press VIEW REWARD to keep or sell.",
+                TextXAlignment = LEFT, TextWrapped = true, TextColor3 = DIM, TextSize = 13, ZIndex = 13,
+            }, preview)
+        end
+    end
+end
+
+-- CS-style visual roulette only: server already selected the actual item.
+-- KEEP/SELL only appear once roulette stops. Pending rewards stay on server.
+local roulette = new("Frame", {
+    Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(5, 7, 16),
+    BackgroundTransparency = 0.08, BorderSizePixel = 0, Visible = false,
+    ZIndex = 60, Active = true,
+}, gui)
+local roulettePanel = new("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.new(0.94, 0, 0, 370), BackgroundColor3 = BG,
+    BorderSizePixel = 0, ZIndex = 61,
+}, roulette)
+round(roulettePanel, 16)
+new("UISizeConstraint", { MaxSize = Vector2.new(840, 370) }, roulettePanel)
+new("UIStroke", { Color = Color3.fromRGB(90, 105, 140), Thickness = 2 }, roulettePanel)
+local rouletteTitle = text({
+    Position = UDim2.new(0, 12, 0, 16), Size = UDim2.new(1, -24, 0, 36),
+    Text = "OPENING CHEST...", Font = Enum.Font.GothamBlack, TextSize = 25,
+    TextColor3 = Color3.fromRGB(255, 210, 85), TextXAlignment = Enum.TextXAlignment.Center,
+    ZIndex = 62,
+}, roulettePanel)
+local viewport = new("Frame", {
+    Position = UDim2.new(0, 18, 0, 72), Size = UDim2.new(1, -36, 0, 142),
+    ClipsDescendants = true, BackgroundColor3 = Color3.fromRGB(13, 16, 30),
+    BorderSizePixel = 0, ZIndex = 62,
+}, roulettePanel)
+round(viewport, 9)
+local strip = new("Frame", {
+    Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 6500, 1, 0),
+    BackgroundTransparency = 1, ZIndex = 63,
+}, viewport)
+local pointer = new("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0),
+    Size = UDim2.fromOffset(4, 142), BackgroundColor3 = Color3.fromRGB(255, 227, 96),
+    BorderSizePixel = 0, ZIndex = 67,
+}, viewport)
+local rouletteResult = text({
+    Position = UDim2.new(0, 12, 0, 225), Size = UDim2.new(1, -24, 0, 38),
+    Text = "", Font = Enum.Font.GothamBlack, TextSize = 21, TextWrapped = true,
+    TextColor3 = TXT, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 62,
+}, roulettePanel)
+local rouletteDetails = text({
+    Position = UDim2.new(0, 12, 0, 260), Size = UDim2.new(1, -24, 0, 29),
+    Text = "", TextSize = 14, TextColor3 = DIM, TextWrapped = true,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 62,
+}, roulettePanel)
+local keepButton = button({
+    Text = "KEEP", Position = UDim2.new(0.5, -158, 1, -67),
+    Size = UDim2.fromOffset(146, 46), BackgroundColor3 = Color3.fromRGB(65, 184, 107),
+    TextSize = 19, Visible = false, ZIndex = 64,
+}, roulettePanel, function()
+    if chestAnimating or busy then return end
+    act("keep")
+end)
+local sellButton = button({
+    Text = "SELL", Position = UDim2.new(0.5, 12, 1, -67),
+    Size = UDim2.fromOffset(146, 46), BackgroundColor3 = Color3.fromRGB(209, 151, 50),
+    TextColor3 = Color3.fromRGB(22, 21, 16),
+    TextSize = 19, Visible = false, ZIndex = 64,
+}, roulettePanel, function()
+    if chestAnimating or busy then return end
+    act("sell")
+end)
+
+local activeRoulette = 0
+startChestAnimation = function(pending, animate)
+    activeRoulette += 1
+    local token = activeRoulette
+    if not pending then
+        chestAnimating = false
+        roulette.Visible = false
+        return
+    end
+    local reward = Meta.Stats[pending.stat]
+    local rarity = Meta.Rarities[pending.r]
+    if not reward or not rarity then return end
+
+    roulette.Visible = true
+    chestAnimating = animate
+    keepButton.Visible = false
+    sellButton.Visible = false
+    rouletteResult.Text = ""
+    rouletteDetails.Text = ""
+    rouletteTitle.Text = animate and "OPENING CHEST..." or "YOUR CHEST REWARD"
+    for _, child in ipairs(strip:GetChildren()) do child:Destroy() end
+
+    local cardW, gap = 132, 8
+    local step = cardW + gap
+    local count, winningIndex = 43, 37
+    local rng = Random.new()
+    local function createTile(index, statId, rarityId)
+        local stat = Meta.Stats[statId]
+        local rar = Meta.Rarities[rarityId]
+        local tile = new("Frame", {
+            Position = UDim2.fromOffset((index - 1) * step, 7),
+            Size = UDim2.fromOffset(cardW, 126),
+            BackgroundColor3 = Color3.fromRGB(32, 36, 58), BorderSizePixel = 0,
+            ZIndex = 64,
+        }, strip)
+        round(tile, 8)
+        new("UIStroke", { Color = rar.color, Thickness = 2 }, tile)
+        text({
+            Position = UDim2.fromOffset(5, 9), Size = UDim2.new(1, -10, 0, 24),
+            Text = rar.name:upper(), TextColor3 = rar.color,
+            TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 65,
+        }, tile)
+        text({
+            Position = UDim2.fromOffset(5, 41), Size = UDim2.new(1, -10, 0, 42),
+            Text = stat.name, TextColor3 = stat.color, Font = Enum.Font.GothamBlack,
+            TextSize = 16, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 65,
+        }, tile)
+        text({
+            Position = UDim2.fromOffset(5, 92), Size = UDim2.new(1, -10, 0, 23),
+            Text = "+" .. tostring(rar.lv) .. " LV", TextColor3 = DIM,
+            TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 65,
+        }, tile)
+    end
+
+    for i = 1, count do
+        local statId, rarityId
+        if i == winningIndex then
+            statId, rarityId = pending.stat, pending.r
+        else
+            statId, rarityId = Meta.roll(rng)
+        end
+        createTile(i, statId, rarityId)
+    end
+    strip.Size = UDim2.new(0, count * step, 1, 0)
+    local center = math.max(1, viewport.AbsoluteSize.X) / 2
+    local selectedX = (winningIndex - 1) * step + cardW / 2
+    strip.Position = UDim2.fromOffset(center - (cardW / 2), 0)
+
+    local function reveal()
+        if token ~= activeRoulette then return end
+        chestAnimating = false
+        rouletteTitle.Text = "YOU UNBOXED!"
+        rouletteResult.Text = rarity.name:upper() .. "  -  " .. reward.name
+        rouletteResult.TextColor3 = rarity.color
+        local current = ((S and S.up) and S.up[pending.stat]) or 0
+        rouletteDetails.Text = reward.text .. "  |  Current: " .. current .. " / " .. Meta.MaxLevel
+        keepButton.Text = current >= Meta.MaxLevel and "MAXED" or "KEEP"
+        sellButton.Text = "SELL  +" .. tostring(rarity.sell) .. " COINS"
+        keepButton.Visible = true
+        sellButton.Visible = true
+        sfx("levelup", 0.5)
+    end
+
+    local targetX = center - selectedX + rng:NextNumber(-12, 12)
+    if animate then
+        local tween = TweenService:Create(strip,
+            TweenInfo.new(5.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+            { Position = UDim2.fromOffset(targetX, 0) })
+        tween:Play()
+        tween.Completed:Once(function()
+            if token == activeRoulette then reveal() end
+        end)
+    else
+        strip.Position = UDim2.fromOffset(targetX, 0)
+        reveal()
+    end
 end
 
 local function renderUpgrades()
