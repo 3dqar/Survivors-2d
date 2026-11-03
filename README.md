@@ -49,3 +49,11 @@ git push -u origin main
 ```
 
 If repository already exists, clone it first and copy the project files into that clone instead of running `git init` in an unrelated working folder.
+
+## V6: lifetime records and death-only menu
+- Local leaderstats: Total kills, Best kills (one run), Best level, Best (survival seconds), Coins.
+- Global OrderedDataStores: SurvivorsBestV1 (survival), SurvivorsBestKillsV1, SurvivorsBestLevelV1, SurvivorsTotalKillsV1.
+- The menu opens only after death and automatically closes on revival. Server validates menu actions.
+- Publish the experience; for Studio testing enable Game Settings > Security > Enable Studio Access to API Services.
+- These records start from the first run after v6 is installed; older unrecorded best-run kills cannot be reconstructed.
+- Test the DataStore behavior in a published test experience before release.
