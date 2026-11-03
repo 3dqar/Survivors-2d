@@ -11,7 +11,9 @@ local Shared = ReplicatedStorage:WaitForChild("SurvivorsShared")
 local Meta = require(Shared:WaitForChild("Meta"))
 local Config = require(Shared:WaitForChild("Config"))
 local SupportProducts = require(Shared:WaitForChild("SupportProducts"))
-local metaRF = ReplicatedStorage:WaitForChild("SurvivorsRemotes"):WaitForChild("Meta")
+local remotes = ReplicatedStorage:WaitForChild("SurvivorsRemotes")
+local metaRF = remotes:WaitForChild("Meta")
+local joinRemote = remotes:WaitForChild("Join")
 
 local BG, PANEL, ACC, TXT = Color3.fromRGB(14, 16, 28), Color3.fromRGB(30, 34, 56), Color3.fromRGB(90, 170, 255), Color3.fromRGB(235, 238, 250)
 local DIM = Color3.fromRGB(190, 195, 225)
@@ -73,22 +75,26 @@ end
 local gui = new("ScreenGui", { Name = "SurvivorsMenu", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 20 }, player:WaitForChild("PlayerGui"))
 
 local menuBtn = button({
-	Text = TOUCH and "MENU" or "MENU (M)", Size = TOUCH and UDim2.fromOffset(120, 46) or UDim2.fromOffset(120, 36), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12),
+	Text = "MENU", Size = TOUCH and UDim2.fromOffset(156, 48) or UDim2.fromOffset(160, 44), AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -18),
 	BackgroundColor3 = PANEL, TextSize = 15,
 }, gui, function() end)
 
+local shade = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(3, 4, 12), BackgroundTransparency = 0.24, BorderSizePixel = 0, Visible = false, ZIndex = 9, Active = true }, gui)
+
 local panel = new("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.92, 0.86),
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.88, 0.86),
 	BackgroundColor3 = BG, BorderSizePixel = 0, Visible = false, ZIndex = 10,
 }, gui)
 round(panel, 14)
-new("UISizeConstraint", { MaxSize = Vector2.new(700, 470) }, panel)
+new("UISizeConstraint", { MaxSize = Vector2.new(920, 620) }, panel)
+new("UIStroke", { Color = Color3.fromRGB(90, 105, 140), Thickness = 2 }, panel)
 
-local tabsFrame = new("Frame", { Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -72, 0, 40), BackgroundTransparency = 1, ZIndex = 11 }, panel)
+local menuTitle = text({ Position = UDim2.fromOffset(24, 9), Size = UDim2.new(1, -95, 0, 46), Text = "MENU", Font = Enum.Font.GothamBlack, TextColor3 = ACC, TextSize = TOUCH and 26 or 34, TextXAlignment = LEFT, ZIndex = 12 }, panel)
+local tabsFrame = new("Frame", { Position = UDim2.fromOffset(14, 64), Size = UDim2.new(1, -28, 0, 42), BackgroundTransparency = 1, ZIndex = 11 }, panel)
 new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, tabsFrame)
 
 local content = new("ScrollingFrame", {
-	Position = UDim2.fromOffset(12, 58), Size = UDim2.new(1, -24, 1, -70), BackgroundTransparency = 1, BorderSizePixel = 0,
+	Position = UDim2.fromOffset(14, 116), Size = UDim2.new(1, -28, 1, -190), BackgroundTransparency = 1, BorderSizePixel = 0,
 	ScrollBarThickness = 6, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), ZIndex = 11,
 }, panel)
 new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, content)
@@ -263,7 +269,7 @@ local function renderSupport()
             if not ready then
                 return
             end
-            if player:GetAttribute("Alive") ~= false or player:GetAttribute("HasDied") ~= true then
+            if not (player:GetAttribute("HasJoined") ~= true or (player:GetAttribute("Alive") == false and player:GetAttribute("HasDied") == true)) then
                 return
             end
             local ok, err = pcall(function()
@@ -295,7 +301,7 @@ function render()
 	if not S then
 		return
 	end
-	menuBtn.Text = (S.chests > 0 or S.pending) and "MENU (M) !" or "MENU (M)"
+	menuBtn.Text = (S.chests > 0 or S.pending) and "MENU !" or "MENU"
 	if not panel.Visible then
 		return
 	end
@@ -324,40 +330,80 @@ function render()
 	end
 end
 
-button({ Text = "X", Size = UDim2.fromOffset(48, 40), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 8), BackgroundColor3 = Color3.fromRGB(200, 70, 80), ZIndex = 12 }, panel, function()
-	panel.Visible = false
-end)
-
-local function canOpenMenu()
-	return player:GetAttribute("Alive") == false and player:GetAttribute("HasDied") == true
+local function isLobby()
+	return player:GetAttribute("HasJoined") ~= true
 end
 
+local function canOpenMenu()
+	return isLobby() or (player:GetAttribute("Alive") == false and player:GetAttribute("HasDied") == true)
+end
+
+local function showMenu(open)
+	panel.Visible = open
+	shade.Visible = open
+	if open then
+		if S and S.pending then tab = "Chests" end
+		if S then render() end
+		task.spawn(act, "state")
+	end
+end
+
+local closeBtn = button({ Text = "X", Size = UDim2.fromOffset(48, 42), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 12), BackgroundColor3 = Color3.fromRGB(184, 52, 73), ZIndex = 12 }, panel, function()
+	if not isLobby() then
+		showMenu(false)
+	end
+end)
+
+local joinBtn = button({
+	Text = "JOIN", Size = TOUCH and UDim2.fromOffset(150, 52) or UDim2.fromOffset(172, 54),
+	AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -18, 1, -14),
+	BackgroundColor3 = Color3.fromRGB(55, 185, 107), TextSize = 23, ZIndex = 12,
+}, panel, function()
+	if isLobby() then
+		joinRemote:FireServer()
+		joinBtn.Text = "JOINING..."
+		joinBtn.Active = false
+	else
+		-- After death, the server controls revive / next-run timing.
+		showMenu(false)
+	end
+end)
+
 local function syncMenuAccess()
+	local lobby = isLobby()
 	local allowed = canOpenMenu()
-	menuBtn.Visible = allowed
-	if not allowed then
-		panel.Visible = false
+	menuBtn.Visible = not lobby and allowed
+	closeBtn.Visible = not lobby
+	joinBtn.Text = lobby and "JOIN" or "BACK"
+	joinBtn.Active = true
+	if lobby then
+		if not panel.Visible then showMenu(true) end
+	elseif not allowed then
+		showMenu(false)
+	else
+		-- Return to the original death / THE HORDE WINS view until MENU is clicked.
+		if player:GetAttribute("HasDied") == true and player:GetAttribute("Alive") == false then
+			-- Do not auto-open on death.
+		end
 	end
 end
 
 local function toggle()
 	if not canOpenMenu() then
-		panel.Visible = false
+		showMenu(false)
 		return
 	end
-	panel.Visible = not panel.Visible
-	if panel.Visible then
-		if S and S.pending then
-			tab = "Chests"
-		end
-		render()
-		act("state")
+	if isLobby() then
+		showMenu(true)
+	else
+		showMenu(not panel.Visible)
 	end
 end
 
 menuBtn.Activated:Connect(toggle)
 player:GetAttributeChangedSignal("Alive"):Connect(syncMenuAccess)
 player:GetAttributeChangedSignal("HasDied"):Connect(syncMenuAccess)
+player:GetAttributeChangedSignal("HasJoined"):Connect(syncMenuAccess)
 syncMenuAccess()
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.M then
