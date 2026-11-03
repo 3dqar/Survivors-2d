@@ -287,7 +287,7 @@ end
 -- po žaidimo: monetos pagal nužudymus ir laiką
 function Persistence.record(player, secs, kills, level)
 	local d = data[player]
-	if not d or not d.loaded or d.noSave then return 0 end
+	if not d or not d.loaded then return 0 end
 	secs = math.max(0, math.floor(tonumber(secs) or 0))
 	kills = math.max(0, math.floor(tonumber(kills) or 0))
 	level = math.max(1, math.floor(tonumber(level) or 1))
