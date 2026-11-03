@@ -45,22 +45,47 @@ local function refreshValues(d)
 	d.bestLevelValue.Value = d.bestLevel
 end
 
+-- Per-player serial saving prevents a delayed older SetAsync from overwriting a newer run.
+-- Only save after a successful profile read; never overwrite data if GetAsync failed.
 local function save(player)
-	local d = data[player]
-	if not store or not d or not d.loaded or d.noSave or not d.dirty then
-		return
-	end
-	d.dirty = false
-	local ok = pcall(function()
-		store:SetAsync(tostring(player.UserId), {
-			best = d.best, kills = d.kills, bestKills = d.bestKills, bestLevel = d.bestLevel, coins = d.coins, chests = d.chests, up = d.up, pending = d.pending,
-			stats = d.stats, ach = d.ach, daily = d.daily, preferredHero = d.preferredHero,
-		})
-	end)
-	if not ok then
-		d.dirty = true
-		warn("[Survivors] Profile save failed for " .. player.UserId .. " (check published game / API Services).")
-	end
+    local d = data[player]
+    if not store or not d or not d.loaded or d.noSave then return end
+
+    -- When called during another save, wait for it to finish. PlayerRemoving and
+    -- BindToClose must not discard writes queued during an in-flight request.
+    if d.saving then
+        while d.saving and data[player] == d do
+            task.wait(0.05)
+        end
+    end
+    if data[player] ~= d or not d.dirty then return end
+    d.saving = true
+
+    local attempts = 0
+    while d.dirty and attempts < 4 and data[player] == d do
+        attempts += 1
+        d.dirty = false
+        local payload = {
+            best = d.best, kills = d.kills, bestKills = d.bestKills, bestLevel = d.bestLevel,
+            coins = d.coins, chests = d.chests,
+            up = table.clone(d.up),
+            pending = d.pending and table.clone(d.pending) or nil,
+            stats = table.clone(d.stats), ach = table.clone(d.ach),
+            daily = { day = d.daily.day, prog = table.clone(d.daily.prog), done = table.clone(d.daily.done) },
+            preferredHero = d.preferredHero,
+        }
+        local ok, err = pcall(function()
+            store:SetAsync(tostring(player.UserId), payload)
+        end)
+        if not ok then
+            d.dirty = true
+            warn("[Survivors] Profile save failed for " .. player.UserId .. ": " .. tostring(err))
+            break
+        end
+        -- If another event changed money/upgrades during the write, loop and save
+        -- that later snapshot too; calls for the same player never race.
+    end
+    d.saving = false
 end
 
 local function touch(player)
@@ -137,7 +162,7 @@ function Persistence.attach(player)
 		player = player,
 		best = 0, kills = 0, bestKills = 0, bestLevel = 0, coins = 0, chests = 0, up = {}, pending = nil,
 		stats = {}, ach = {}, preferredHero = nil, daily = { day = 0, prog = {}, done = {} }, toastN = 0,
-		loaded = false, dirty = false, timer = false, noSave = false,
+		loaded = false, dirty = false, saving = false, timer = false, noSave = false,
 		bestValue = value("Best (s)"), killsValue = value("Total kills"), coinsValue = value("Coins"),
 		bestKillsValue = value("Best kills"), bestLevelValue = value("Best level"),
 	}
