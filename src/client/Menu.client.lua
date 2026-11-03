@@ -629,6 +629,16 @@ function render()
 	end
 end
 
+-- Quick access to audio settings even on narrow screens where tabs scroll.
+button({
+    Text = "⚙", Size = UDim2.fromOffset(45, 42),
+    AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -68, 0, 12),
+    BackgroundColor3 = PANEL, TextSize = 25, ZIndex = 12,
+}, panel, function()
+    tab = "Settings"
+    if S then render() else task.spawn(act, "state") end
+end)
+
 local function isLobby()
 	return player:GetAttribute("HasJoined") ~= true
 end
