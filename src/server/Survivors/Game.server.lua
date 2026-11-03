@@ -1324,11 +1324,33 @@ function restartRun()
 			publish(player, st)
 			continue
 		end
+		-- Protect restart from simultaneous deaths/leaves during character creation.
+		st.spawning = true
 		player:SetAttribute("HasDied", false)
 		task.spawn(function()
+			local loaded = Persistence.waitLoaded(player, 30)
+			if stats[player] ~= st then return end
+			if not loaded then
+				st.spawning = false
+				st.waitingReward = true
+				player:SetAttribute("HasDied", true)
+				publish(player, st)
+				warn("[Survivors] Could not load profile before restart for " .. player.UserId)
+				return
+			end
+			if Persistence.hasPending(player) then
+				st.spawning = false
+				st.waitingReward = true
+				player:SetAttribute("HasDied", true)
+				publish(player, st)
+				return
+			end
+			if run.state ~= "Playing" then
+				st.spawning = false
+				return
+			end
 			spawnPlayer(player, st, nil, 1)
-			Persistence.waitLoaded(player, 10)
-			if stats[player] == st and run.state == "Playing" then
+			if stats[player] == st and run.state == "Playing" and st.alive then
 				sendHeroOffer(player, st)
 			end
 		end)
