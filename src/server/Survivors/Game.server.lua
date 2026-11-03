@@ -1243,6 +1243,11 @@ function revivePlayer(player, st, targets)
 	if #targets == 0 then
 		return
 	end
+	-- Keep the dead player safe until they claim their chest reward.
+	-- Otherwise automatic teammate revival hides the menu mid-roulette.
+	if Persistence.hasPending(player) then
+		return
+	end
 	local anchor = targets[rng:NextInteger(1, #targets)]
 	st.spawning = true
 	task.spawn(function()
@@ -1260,7 +1265,10 @@ local function endRun()
 	workspace:SetAttribute("RestartAt", 0)
 	workspace:SetAttribute("RunState", "GameOver")
 	for player, st in stats do
-		Persistence.record(player, secs, st.kills, st.level)
+		-- Only participants earned this run's time/score.
+		if st.joined then
+			Persistence.record(player, secs, st.kills, st.level)
+		end
 	end
 end
 
@@ -1575,13 +1583,7 @@ joinRemote.OnServerEvent:Connect(function(player)
 	end
 	st.joined = true
 	player:SetAttribute("HasJoined", true)
-	if Persistence.hasPending(player) then
-		-- Reward obtained in an earlier session must be resolved before joining.
-		st.waitingReward = true
-		player:SetAttribute("HasDied", true)
-		publish(player, st)
-		return
-	end
+	-- Persistent pending reward is checked again AFTER loading in the spawn task.
 	if run.state ~= "Playing" then
 		-- Joined during the result screen: automatically enter on the next run.
 		return
@@ -1600,9 +1602,23 @@ joinRemote.OnServerEvent:Connect(function(player)
 		st.level = 1 + st.pending
 	end
 	task.spawn(function()
-		if stats[player] ~= st or run.state ~= "Playing" then return end
+		-- Load persistent chest data BEFORE spawning, otherwise JOIN can race GetAsync.
+		local loaded = Persistence.waitLoaded(player, 30)
+		if stats[player] ~= st then return end
+		if not loaded then
+			warn("[Survivors] Could not load profile before JOIN for " .. player.UserId)
+			st.joined = false
+			player:SetAttribute("HasJoined", false)
+			return
+		end
+		if Persistence.hasPending(player) then
+			st.waitingReward = true
+			player:SetAttribute("HasDied", true)
+			publish(player, st)
+			return
+		end
+		if run.state ~= "Playing" then return end
 		spawnPlayer(player, st, nil, 1)
-		Persistence.waitLoaded(player, 10)
 		if stats[player] == st and run.state == "Playing" and st.alive then
 			sendHeroOffer(player, st)
 		end
