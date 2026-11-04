@@ -1,5 +1,8 @@
 # NEON HORDE SURVIVORS — CLAUDE MAJOR UPDATE TASK
 
+> **NEW WORK SPLIT (2026-11-04):** ChatGPT has already implemented the persistent cosmetic trail backend and client-side lightweight Trail renderer. **Claude owns the FIVE CHAOS EVENTS, 3D visuals/assets, and ALL UI**, including cosmetic shop and preview screens. Before coding, read `docs/COSMETICS_BACKEND.md`. **Do not rebuild the cosmetics storage, coin purchase/equip remote protocol, or supporter trails**; integrate your UI with existing `Meta("cosmeticBuy", id)`, `Meta("cosmeticEquip", id)`, `Meta("cosmeticUnequip")` and `state.cosmetics`. The cosmetics are not yet chest rewards; implement integration later using durable reward grants and migration-safe code.
+
+
 > **READ THIS FILE FIRST.** You are working on the existing Roblox Rojo project. This is an implementation brief, NOT a request to start a new game.
 >
 > Repo: `3dqar/Survivors-2d` (main)
@@ -22,7 +25,8 @@ Make the game significantly more fun to play over multiple days. Ship five **ran
 - `src/client/HUD.client.lua`: game HUD, hero/weapon selection, end-of-run.
 - `src/client/Menu.client.lua`: chest roulette, inventory, Support, Settings.
 - `src/client/World.client.lua`: world camera, effects, SFX.
-- `src/shared/SurvivorsShared/{Config,Weapons,Meta,SupportProducts,AudioSettings}.lua`.
+- `src/shared/SurvivorsShared/{Config,Weapons,Meta,SupportProducts,AudioSettings,Cosmetics}.lua`.
+- `src/client/Cosmetics.client.lua` and `docs/COSMETICS_BACKEND.md`: cosmetics baseline already shipped; Claude should implement UI and chest integration, not recreate storage.
 - `default.project.json`: Rojo mappings.
 
 Use actual code signatures and game state; do not guess. Consult other modules only as needed.
@@ -109,9 +113,11 @@ Introduce:
 - Existing `pending` behavior must not allow entering gameplay while outstanding rewards need resolution.
 - If safe ×5 cannot be guaranteed in one milestone, ship safe ×1 + persistent batch state first; do not fake it with five insecure API calls.
 
-# MILESTONE 3 — COSMETICS / TRAILS
+# MILESTONE 3 — COSMETICS / TRAILS (BACKEND ALREADY IMPLEMENTED)
 
-Create an inventory, preview, equip, unequip, and save system for:
+**Do not replace the existing cosmetics backend.** Read `docs/COSMETICS_BACKEND.md` and build a polished UI + chest integration using the existing purchase/equip/save APIs. The 8 catalog entries and local cosmetic Trail renderer already exist. Improve their visual polish only when it doesn't conflict with the VIP Supporter effects.
+
+Create beautiful UI for the existing catalog:
 - Blue Fire (Rare)
 - Shadow Smoke (Epic)
 - Golden Lightning (Legendary)
