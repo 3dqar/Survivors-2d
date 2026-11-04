@@ -11,6 +11,8 @@ local function cleanup(player)
     local t = tracked[player]
     if not t then return end
     if t.model then t.model:Destroy() end
+    if t.emitter then t.emitter:Destroy() end
+    if t.attachments then for _, a in ipairs(t.attachments) do a:Destroy() end end
     for _, connection in ipairs(t.connections) do connection:Disconnect() end
     tracked[player] = nil
 end
@@ -19,6 +21,8 @@ local function apply(player)
     local t = tracked[player]
     if not t then return end
     if t.model then t.model:Destroy(); t.model = nil end
+    if t.attachments then for _, attachment in ipairs(t.attachments) do attachment:Destroy() end; t.attachments = nil end
+    if t.emitter then t.emitter:Destroy(); t.emitter = nil end
     local id = player:GetAttribute("CosmeticTrail")
     local def = type(id) == "string" and Cosmetics.ById[id]
     if not def then return end
@@ -34,9 +38,7 @@ local function apply(player)
     local a = Instance.new("Attachment")
     a.Name = "CosmeticTop"
     a.Position = Vector3.new(0, 0.55, 0)
-    a.Parent = folder
-    -- Attachment inside Folder is invalid for world-position ancestry. Attach directly to root,
-    -- with the collection folder holding only Trail/Emitter. Root attachments use our own namespace.
+    -- Attachments live on HumanoidRootPart; only cosmetic-owned instances are removed.
     a.Parent = root
     local b = Instance.new("Attachment")
     b.Name = "CosmeticBottom"
@@ -81,6 +83,22 @@ local function apply(player)
     })
     emission.Transparency = NumberSequence.new(0.18, 1)
     emission.Color = ColorSequence.new(def.colors[1], def.colors[2])
+    if def.style == "smoke" or def.style == "void" then
+        emission.Drag = 4
+        emission.Acceleration = Vector3.new(0, 1.5, 0)
+        emission.Rate = 5
+    elseif def.style == "spark" or def.style == "crystal" then
+        emission.Rotation = NumberRange.new(-180, 180)
+        emission.RotSpeed = NumberRange.new(-45, 45)
+        emission.Rate = 8
+    elseif def.style == "petal" then
+        emission.Acceleration = Vector3.new(0, -0.7, 0)
+        emission.Speed = NumberRange.new(0.2, 1)
+        emission.RotSpeed = NumberRange.new(-75, 75)
+    elseif def.style == "droplet" then
+        emission.Acceleration = Vector3.new(0, -3, 0)
+        emission.Speed = NumberRange.new(0.2, 1)
+    end
     emission.Parent = b
     t.emitter = emission
     t.trail = trail
