@@ -179,6 +179,71 @@ No movement, attack, health or XP advantage from cosmetic rewards.
 - Give short progress reports: what files changed, known issues, which milestone is next.
 - Make sure Luau syntax and remote signatures align with the actual project.
 
+# ADDITIONAL CONTENT MILESTONE — EIGHT NEW WEAPONS + EVOLUTIONS
+
+**User-approved scope: ALL 8 weapons below. Claude is responsible for game design, damage/economy balance, models, animations, gameplay visuals, and UI. ChatGPT must not silently rebalance these.**
+
+**Absolute progression invariant:** each new weapon has base **LV 1, 2, 3, 4, 5**, and a genuine evolution **LV 6, 7, 8, 9, 10**. Evolving at LV 5 changes the weapon into its evolved identity at LV 6, **never displays or internally reverts to LV 1**. Evolution must be a strictly worthwhile power upgrade, not loss of attacks. Provide five individually designed evolved-level profiles with meaningful improvements and matching tooltip text. Extend the existing six weapons to this same consistent rule as described in the urgent evolution fix above. Do not merely set level to 6 without defining `levels[6]` through `levels[10]`.
+
+## Eight weapons and their evolved forms
+
+1. **CHAINSAW -> BLOOD REAPER**
+   - Base: a rotating close-range chainsaw/blade that damages enemies on its cutting arc (distinct from the existing orbiting Blades; emphasize cutting sweep/hit cadence rather than passive identical orbit behavior).
+   - Evolved: multiple distinct saws sweeping different radii, capped collision checks and cool hit FX; high levels leave short-lived damaging fire/cutting trails.
+   - Boss damage and repeated-hit rate must be capped/balanced.
+
+2. **BLACK HOLE -> VOID COLLAPSE**
+   - Base: periodically spawns a temporary gravity vortex at a tactical position; pulls nearby regular mobs toward the center and deals controlled pulse damage.
+   - Evolved: stronger but bounded pull, larger/faster controlled pulses, then visible implosion burst; high levels add a second smaller singularity or echo pulses only if performant.
+   - Bosses resist pull and are never permanently stuck; don't alter server NPC positions via unbounded per-frame forces.
+
+3. **ACID GUN -> PLAGUE STORM**
+   - Base: fires toxic projectiles which create short-lived damaging puddles on impact.
+   - Evolved: larger/longer-lasting puddles and a contagion effect that transfers bounded poison damage to nearby enemies; cap concurrent puddles, targets, and poison stacks.
+   - Distinctive green droplets and acid decals/particles without costly assets.
+
+4. **AUTO TURRET -> WAR MACHINE**
+   - Base: temporarily deploys a compact automated firing turret near the player, choosing nearby enemies and firing at a limited interval.
+   - Evolved: multiple turrets / alternate rocket or laser bursts at higher levels with cooldowns and hard instance limits.
+   - Robust cleanup on owner death, round reset, or run end; server owns actual damage, client renders turret/tracers.
+
+5. **ICE SPIKES -> FROZEN APOCALYPSE**
+   - Base: erupts ice spikes in short telegraphed ground lines/patches, damages and slows opponents briefly.
+   - Evolved: controlled wave of spikes, shattering ice walls/patches and burst damage; boss crowd-control reduced.
+   - Avoid collision traps for mobile players; avoid indefinite freezing and accumulating anchored parts.
+
+6. **LASER CANNON -> DEATH RAY**
+   - Base: periodic high-intensity piercing beam along a chosen target direction that damages enemies in its narrow path.
+   - Evolved: sweeps/rotates visibly (possibly full 360 degrees at high levels), with bounded duration/hit count, clear telegraph, and controlled boss damage.
+   - Beam visuals are mostly client-side; server resolves collision and damage efficiently.
+
+7. **COMBAT DRONE -> DRONE SWARM**
+   - Base: small flying companion that targets nearby enemies and fires with a clear cadence.
+   - Evolved: multiple drones (target of up to 5 at highest level, subject to profiling), cooperative priority targeting toward stronger enemies.
+   - Drones are functional targeting units, **not physical network-owned player-controlled vehicles**; implement low-cost visual orbit/hover and cleanup when dead/out of game.
+
+8. **BOOMERANG -> SOUL HARVESTER**
+   - Base: throws a returning curved/scythe-like projectile that hits enemies on both outbound and returning paths.
+   - Evolved: multiple independent returning soul scythes at higher levels with distinct flight arcs; cannot repeatedly damage the same target every simulation step.
+   - Use server-authoritative projectile state and temporary per-projectile hit cooldowns or hit sets.
+
+## Integration and reliability requirements
+
+- Inspect `src/shared/SurvivorsShared/Weapons.lua`, `src/server/Survivors/Game.server.lua`, `src/client/HUD.client.lua`, and `src/client/World.client.lua` before changing anything. Follow existing `Defs.Weapons`, `WeaponOrder`, `AllWeapons`, `Evolutions`, combat loop, `publish` attributes, offer/pick validation, and FX patterns.
+- Register eight base weapons in player selection and level-up offers, and all eight evolutions in `Evolutions` and `AllWeapons`. Add distinct passive prerequisites using existing passives or deliberately introduce new passive definitions only if needed. Do not create impossible prerequisites.
+- Each weapon must have **ten coherent displayed levels** (five base + five evolved); later offers must propose **LV 7–10** after evolution. No repeated evolution option once evolved. Ensure old weapons follow the same pattern.
+- Implement accurate per-level combat stats, meaningful unique mechanics, rare VFX moments, readable icons/notes, client-side optimized visuals, appropriate weapon audio hooks (only approved assets, no invented IDs).
+- Existing weapons, heroes, bosses, Run State and Chaos Events must remain compatible. When a Chaos Event suspends weapons, suspend both current and newly added weapons, safely resuming exact prior levels/timers afterward.
+- Balance is Claude's responsibility, with recorded reasoning and actual playtest metrics where available. Avoid one weapon dominating all other builds. Separate mob DPS, boss DPS, AoE coverage, and performance budgets.
+- **Mobile performance:** no O(players×enemies×weapons) full scans every Heartbeat, no unbounded particles/instances. Use spatial grid/nearby-target logic, pooling or bounded lifetime/caps for projectiles, puddles, drones, turrets, and AoE, and throttled visuals on low-end phones.
+- Exploit protection: server-authoritative damage/XP/kills and weapon levels; no client-provided damage or evolution tier.
+- Acceptance test every base and evolved form from LV 1 to LV 10, especially at LV 5 → 6, all offers after evolution, death/restart, late joiners, multiplayer and mobile. Don't claim Roblox Studio tests unless performed.
+- If limited by Claude Free usage, implement **one weapon completely (base, evolution, combat, visuals, cleanup, offers)** before starting the next; commit stable partial progress and update `docs/IMPLEMENTATION_STATUS.md`. Do not claim all eight are implemented if any are pending.
+- This milestone is scheduled **after the urgent fix to existing evolution level continuity**. Coordinate implementation with Chaos Events rather than disrupting partially completed work.
+
+
+---
+
 ## FIRST ACTION NOW
 
 1. Inspect the existing `Game.server.lua`, `HUD.client.lua`, `World.client.lua`, `Persistence.lua`, `Meta.server.lua`, `Menu.client.lua` and shared config.
