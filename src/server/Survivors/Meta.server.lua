@@ -11,10 +11,12 @@ rf.Parent = remotes
 
 local actions = {
 	open = Persistence.open, keep = Persistence.keep, sell = Persistence.sell, buy = Persistence.buy,
+    cosmeticBuy = Persistence.cosmeticBuy, cosmeticEquip = Persistence.cosmeticEquip,
+    cosmeticUnequip = Persistence.cosmeticUnequip,
 }
 local last = {}
 
-rf.OnServerInvoke = function(player, action)
+rf.OnServerInvoke = function(player, action, cosmeticId)
 	local now = os.clock()
 	if last[player] and now - last[player] < 0.15 then
 		return nil
@@ -28,7 +30,7 @@ rf.OnServerInvoke = function(player, action)
 	end
 	local fn = type(action) == "string" and actions[action]
 	if fn then
-		return fn(player)
+		return fn(player, cosmeticId)
 	end
 	return Persistence.state(player, true)
 end
