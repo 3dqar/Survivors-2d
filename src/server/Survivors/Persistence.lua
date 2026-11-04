@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Meta = require(ReplicatedStorage:WaitForChild("SurvivorsShared"):WaitForChild("Meta"))
+local Cosmetics = require(ReplicatedStorage:WaitForChild("SurvivorsShared"):WaitForChild("Cosmetics"))
 local Goals = require(script.Parent:WaitForChild("Goals"))
 
 local Persistence = {}
@@ -73,6 +74,7 @@ local function save(player)
             stats = table.clone(d.stats), ach = table.clone(d.ach),
             daily = { day = d.daily.day, prog = table.clone(d.daily.prog), done = table.clone(d.daily.done) },
             preferredHero = d.preferredHero,
+            cosmetics = { owned = table.clone(d.cosmetics.owned), equipped = d.cosmetics.equipped },
         }
         local ok, err = pcall(function()
             store:SetAsync(tostring(player.UserId), payload)
@@ -162,6 +164,7 @@ function Persistence.attach(player)
 		player = player,
 		best = 0, kills = 0, bestKills = 0, bestLevel = 0, coins = 0, chests = 0, up = {}, pending = nil,
 		stats = {}, ach = {}, preferredHero = nil, daily = { day = 0, prog = {}, done = {} }, toastN = 0,
+        cosmetics = { owned = {}, equipped = nil },
 		loaded = false, dirty = false, saving = false, timer = false, noSave = false,
 		bestValue = value("Best (s)"), killsValue = value("Total kills"), coinsValue = value("Coins"),
 		bestKillsValue = value("Best kills"), bestLevelValue = value("Best level"),
@@ -171,6 +174,7 @@ function Persistence.attach(player)
 
 	local function done(gift)
 		d.loaded = true
+        player:SetAttribute("CosmeticTrail", d.cosmetics.equipped or "")
 		refreshValues(d)
 		if gift then
 			touch(player)
@@ -210,6 +214,20 @@ function Persistence.attach(player)
 				if type(saved.preferredHero) == "string" then
 					d.preferredHero = saved.preferredHero
 				end
+                if type(saved.cosmetics) == "table" then
+                    local owned = saved.cosmetics.owned
+                    if type(owned) == "table" then
+                        for id, has in pairs(owned) do
+                            if type(id) == "string" and Cosmetics.ById[id] and has == true then
+                                d.cosmetics.owned[id] = true
+                            end
+                        end
+                    end
+                    local equipped = saved.cosmetics.equipped
+                    if type(equipped) == "string" and d.cosmetics.owned[equipped] then
+                        d.cosmetics.equipped = equipped
+                    end
+                end
 				if type(saved.stats) == "table" then
 					d.stats = saved.stats
 				end
@@ -380,6 +398,7 @@ local function state(player, ok, msg)
 		pending = d.pending, best = d.best, kills = d.kills, bestKills = d.bestKills, bestLevel = d.bestLevel,
 		price = Meta.ChestPrice, top = tops.time or {}, topKills = tops.bestKills or {}, topLevel = tops.bestLevel or {}, topTotalKills = tops.totalKills or {}, server = server,
 		ach = ach, daily = daily, dailyReset = (d.daily.day + 1) * 86400 - os.time(),
+        cosmetics = { owned = table.clone(d.cosmetics.owned), equipped = d.cosmetics.equipped or "" },
 	}
 end
 Persistence.state = state
@@ -458,6 +477,66 @@ function Persistence.buy(player)
 	d.chests += 1
 	touch(player)
 	return state(player, true, "Chest bought!")
+end
+
+-- Cosmetic operations are server-authoritative, persistence-backed and never grant combat stats.
+-- UI can call Meta(cosmeticBuy/cosmeticEquip/cosmeticUnequip, cosmeticId).
+local function cosmeticsAvailable(player)
+    local d = data[player]
+    if not d or not d.loaded then return nil, "Profile is loading." end
+    if d.noSave then return nil, "Saving unavailable. Try again later." end
+    if d.pending then return nil, "Resolve the chest reward first." end
+    return d
+end
+
+function Persistence.grantCosmetic(player, id)
+    local d = data[player]
+    if not d or not d.loaded or d.noSave or not Cosmetics.ById[id] then
+        return false
+    end
+    if d.cosmetics.owned[id] then return false end
+    d.cosmetics.owned[id] = true
+    touch(player)
+    task.spawn(save, player)
+    return true
+end
+
+function Persistence.cosmeticBuy(player, id)
+    local d, err = cosmeticsAvailable(player)
+    if not d then return state(player, false, err) end
+    if type(id) ~= "string" then return state(player, false, "Invalid item.") end
+    local item = Cosmetics.ById[id]
+    if not item then return state(player, false, "Unknown cosmetic.") end
+    if d.cosmetics.owned[id] then return state(player, false, "Already owned.") end
+    if d.coins < item.price then return state(player, false, "Not enough coins.") end
+    d.coins -= item.price
+    d.cosmetics.owned[id] = true
+    touch(player)
+    task.spawn(save, player)
+    return state(player, true, item.name .. " unlocked!")
+end
+
+function Persistence.cosmeticEquip(player, id)
+    local d, err = cosmeticsAvailable(player)
+    if not d then return state(player, false, err) end
+    if type(id) ~= "string" or not Cosmetics.ById[id] or not d.cosmetics.owned[id] then
+        return state(player, false, "Cosmetic not owned.")
+    end
+    if d.cosmetics.equipped == id then return state(player, true, "Already equipped.") end
+    d.cosmetics.equipped = id
+    player:SetAttribute("CosmeticTrail", id)
+    touch(player)
+    return state(player, true, "Trail equipped.")
+end
+
+function Persistence.cosmeticUnequip(player)
+    local d, err = cosmeticsAvailable(player)
+    if not d then return state(player, false, err) end
+    if d.cosmetics.equipped == nil then return state(player, true, "No trail equipped.") end
+    d.cosmetics.equipped = nil
+    player:SetAttribute("CosmeticTrail", "")
+    touch(player)
+    return state(player, true, "Trail removed.")
 end
 
 -- Last selected hero is a convenience preference; validate against Config on use.
