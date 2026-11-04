@@ -43,6 +43,20 @@ Use actual code signatures and game state; do not guess. Consult other modules o
 
 ---
 
+## URGENT PLAYER FEEDBACK — WEAPON EVOLUTION RESETS DISPLAYED LEVEL (FIX BEFORE NEW EVENTS)
+
+**Observed from current source**: `src/server/Survivors/Game.server.lua`, in `applyPick` for an evolution (`kind == "E"`), removes a max-level base weapon and currently executes `st.weapons[to] = 1`. The definitions in `src/shared/SurvivorsShared/Weapons.lua` contain exactly one level for each evolved form (`evolved(..., { ... })`). This makes a Level 5 original weapon apparently become Level 1 upon evolution; the user strongly dislikes the reset.
+
+**Required new behavior**:
+1. Evolution must be visibly continuous: Base Weapon LV 5 -> Evolved Weapon LV 6. Ideally allow subsequent meaningful LV 7–10 upgrades; do not show it as LV 1.
+2. Preserve old weapons' earned strength and ensure evolved LV 6 is at least as powerful/effective as the base LV 5 in real gameplay, taking attack type, cooldown and damage output into account.
+3. Extend `Defs.Weapons` evolved level definitions safely to support indexing at LV 6–10 and correct `d.max`, `d.notes`. Do not *only* change `st.weapons[to] = 1` to `6` without extending the level arrays: this would cause nil indexing and break combat.
+4. The evolved weapon should enter the upgrade offer pool for LV 7–10, one level each time, with visibly meaningful improvements. Keep original evolution prerequisite (base max level + correct passive).
+5. Update HUD/weapon status/offer label and timers if needed, so the visible level doesn't reset. Keep all other game mechanics and player progress intact; no unrelated economic balancing.
+6. Verify in code for every evolution: Bolt→Stormbolt, Blades→Bladestorm, Nova→Blizzard, Chain→Thunder, Meteor→Starfall, Inferno→Hellfire. Test late-game evolved level indexing, attacks, and no repeated evolution offers.
+7. Implement this as a high-priority gameplay bugfix **before** or together with the Chaos Events. This is Claude's gameplay + balance responsibility; ChatGPT did not alter the combat or economic parameters.
+
+
 # MILESTONE 1 — FIVE RANDOM CHAOS EVENTS (FIRST PRIORITY)
 
 Build a cohesive data-driven `ChaosEventService` server module and matching lightweight client VFX/controller (module names are suggestions, honor repository conventions).
